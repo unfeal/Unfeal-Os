@@ -389,3 +389,22 @@ h1 span { color: #b58aff; }
 .jarvis-workbench input { display: block; max-width: 100%; }
 @media (max-width: 760px) { .jarvis-panel { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { .jarvis-orb.active i { animation: none; } }
+.update-notice {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid #82546b;
+  background: #281b30;
+  color: #fff2fa;
+}
+.update-notice button {
+  background: #f3b7dd;
+  color: #2c1726;
+  border: 0;
+  border-radius: 7px;
+  padding: 6px 10px;
+}
+.update-notice button:disabled { opacity: .6; }
+.update-notice p { margin: 0; }

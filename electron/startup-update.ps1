@@ -6,7 +6,9 @@ param(
     [switch] $Launch,
     [switch] $CheckOnly,
     [int] $WaitForProcessId,
-    [switch] $FromApp
+    [switch] $FromApp,
+    [switch] $CleanOnlineStage,
+    [string] $ExpectedVersion
 )
 $ErrorActionPreference = 'Stop'
 if (-not $UpdateZip) {
@@ -96,6 +98,9 @@ try {
         $incoming.main -ne 'electron/main.cjs') {
         throw 'Das ZIP ist kein gültiges UNFEAL-OS-App-Paket.'
     }
+    if ($ExpectedVersion -and $incoming.version -cne $ExpectedVersion) {
+        throw 'Das signierte Paket passt nicht zur angekündigten Version.'
+    }
     if ([version]$incoming.version -le [version]$current.version) {
         Write-Output "UNFEAL OS $($current.version) ist bereits installiert."
         if ($Launch) { Start-App }
@@ -152,3 +157,8 @@ try {
 }
 
 if ($Launch) { Start-App }
+
+if ($CleanOnlineStage -and (Split-Path -Leaf $PSScriptRoot) -match '^unfeal-update-') {
+    Remove-Item -LiteralPath $UpdateZip, $PSCommandPath -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $PSScriptRoot -ErrorAction SilentlyContinue
+}

@@ -1,3 +1,4 @@
+import UpdateNotice, { type UpdateStatus } from "./UpdateNotice";
 import JarvisPanel from "./JarvisPanel";
 import { Fragment, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
@@ -369,6 +370,7 @@ function DesktopClock() {
 declare global {
   interface Window {
     unfeal: {
+      updates: { check: () => Promise<UpdateStatus>; install: (version: string) => Promise<void> };
       workspace: {
         choose: () => Promise<string | null>;
         files: (root: string) => Promise<Array<{ name: string; content: string }> | null>;
@@ -2037,6 +2039,7 @@ export default function App() {
           <span>UNFEAL / {activePage.toUpperCase()}</span>
           <span className="status">● LOCAL SYSTEM</span>
         </header>
+        <UpdateNotice />
         {renderPage()}
       </section>
 

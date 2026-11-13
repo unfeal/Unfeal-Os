@@ -2,6 +2,10 @@ const { contextBridge, ipcRenderer } = require("electron");
 let activeChatRequestId = null;
 
 contextBridge.exposeInMainWorld("unfeal", {
+  updates: {
+    check: () => ipcRenderer.invoke("updates:check"),
+    install: (version) => ipcRenderer.invoke("updates:install", version)
+  },
   app: {
     openExternal: (url) => ipcRenderer.invoke("app:open-external", url)
   },

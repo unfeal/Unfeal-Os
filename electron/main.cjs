@@ -458,14 +458,24 @@ function createWindow() {
   mainWindow.on("closed", () => { mainWindow = null; });
 }
 
-const { checkStartupUpdate } = require("./startup-update.cjs");
-let starting = true;
-app.whenReady().then(async () => {
-  if (await checkStartupUpdate(app, BrowserWindow, dialog)) {
-    app.quit();
-    return;
+const { latestUpdate, installUpdate } = require("./online-update.cjs");
+const { pathToFileURL } = require("node:url");
+function assertUpdateSender(event) {
+  assertKnowledgeSender(event);
+  const expected = pathToFileURL(path.join(__dirname, "..", "dist", "index.html")).href;
+  if (event.senderFrame !== event.sender.mainFrame || event.senderFrame?.url !== expected) {
+    throw new Error("Updates sind nur im installierten Hauptfenster verfügbar.");
   }
-  starting = false;
+}
+ipcMain.handle("updates:check", (event) => {
+  assertUpdateSender(event);
+  return latestUpdate();
+});
+ipcMain.handle("updates:install", (event, version) => {
+  assertUpdateSender(event);
+  return installUpdate(app, version);
+});
+app.whenReady().then(() => {
   knowledgeStore = createKnowledgeStore(app.getPath("userData"));
   secretStore = createSecretStore(safeStorage, app.getPath("userData"));
   createWindow();
@@ -476,6 +486,6 @@ app.on("before-quit", () => {
 });
 
 app.on("window-all-closed", () => {
-  if (!starting && process.platform !== "darwin") app.quit();
+  if (process.platform !== "darwin") app.quit();
 });
 
