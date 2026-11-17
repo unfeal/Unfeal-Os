@@ -408,3 +408,21 @@ h1 span { color: #b58aff; }
 }
 .update-notice button:disabled { opacity: .6; }
 .update-notice p { margin: 0; }
+.chat-model-picker { justify-content: flex-start; width: 100%; gap: 10px; }
+.chat-model-picker button { width: auto; min-width: 34px; padding-inline: 10px; flex-shrink: 0; }
+.chat-model-picker label { flex-shrink: 0; }
+.chat-page > .knowledge-actions { flex-wrap: wrap; align-items: center; gap: 12px 20px; margin-block: 12px; }
+.chat-page > .knowledge-actions > label { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; line-height: 1.5; }
+.chat-page > .knowledge-actions > label input { flex-shrink: 0; margin: 0; }
+.chat-page > .knowledge-actions > small { flex-basis: 100%; color: #bcb1ca; line-height: 1.6; }
+.chat-heading { flex-shrink: 0; }
+.jarvis-panel { flex-shrink: 0; margin-block: 12px; }
+.jarvis-workbench, .jarvis-core { min-width: 0; }
+.chat-page { height: auto; min-height: calc(100vh - 150px); padding-bottom: 24px; }
+.chat-messages { min-height: 180px; }
+.knowledge-actions { flex-wrap: wrap; }
+@media (max-width: 1100px) {
+  .app { grid-template-columns: 200px minmax(0, 1fr); }
+  .app > .right-panel { display: none; }
+  .main { min-width: 0; }
+}
