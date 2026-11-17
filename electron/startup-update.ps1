@@ -48,8 +48,8 @@ function Start-App {
 }
 
 trap {
+    $_ | Out-String | Set-Content -LiteralPath (Join-Path $PSScriptRoot 'startup-update-error.log')
     if ($FromApp -and -not (Get-AppProcesses) -and (Test-Path -LiteralPath (Join-Path $app 'package.json'))) {
-        $_ | Out-String | Set-Content -LiteralPath (Join-Path $PSScriptRoot 'startup-update-error.log')
         Start-App
     }
     break
