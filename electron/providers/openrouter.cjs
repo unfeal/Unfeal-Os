@@ -32,8 +32,19 @@ async function requestChat(model, messages, apiKey, signal, stream) {
 async function chat(model, messages, apiKey, signal) {
   const response = await requestChat(model, messages, apiKey, signal, false);
   const result = await response.json();
-  const content = result.choices?.[0]?.message?.content;
-  if (result.error || typeof content !== "string") throw new Error("OpenRouter returned no text response.");
+  const choice = result.choices?.[0];
+  if (result.error || choice?.finish_reason === "error") {
+    throw new Error("OpenRouter meldet einen Fehler bei der Generierung.");
+  }
+  const raw = choice?.message?.content;
+  const content = typeof raw === "string" ? raw : Array.isArray(raw)
+    ? raw.filter((part) => part?.type === "text" && typeof part.text === "string").map((part) => part.text).join("")
+    : "";
+  if (!content.trim()) {
+    throw new Error(choice?.finish_reason === "length"
+      ? "OpenRouter hat das Tokenlimit erreicht, bevor Antworttext vorlag."
+      : "OpenRouter hat keinen sichtbaren Antworttext geliefert.");
+  }
   return { message: { role: "assistant", content } };
 }
 

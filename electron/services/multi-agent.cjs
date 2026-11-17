@@ -64,9 +64,9 @@ async function runMultiAgent({ providerId, model, messages, getProvider, getApiK
     : "";
   const runAgent = async (agent, round, previousFindings) => {
     reportProgress(`Runde ${round + 1}/${agentRounds}: ${agent.name} arbeitet`);
+    const agentProviderId = agentProviders[agent.id] || providerId;
     try {
       if (signal?.aborted) throw new Error("Agent run cancelled.");
-      const agentProviderId = agentProviders[agent.id] || providerId;
       const agentProvider = getProvider(agentProviderId);
       const agentModel = agentModels[agent.id] || model;
       if (typeof agentModel !== "string" || !agentModel.trim() || agentModel.length > 200) {
@@ -84,7 +84,7 @@ async function runMultiAgent({ providerId, model, messages, getProvider, getApiK
       reportProgress(`Runde ${round + 1}/${agentRounds}: ${agent.name} fertig`);
       return { name: agent.name, provider: agentProvider.name, model: agentModel, content: responseText(response) };
     } catch (error) {
-      if (!signal?.aborted) reportProgress(`Runde ${round + 1}/${agentRounds}: ${agent.name} fehlgeschlagen`);
+      if (!signal?.aborted) reportProgress(`Runde ${round + 1}/${agentRounds}: ${agent.name} fehlgeschlagen${agentProviderId === "openrouter" && error instanceof Error && error.message.startsWith("OpenRouter ") ? " – " + error.message : ""}`);
       throw error;
     }
   };
