@@ -433,3 +433,7 @@ h1 span { color: #b58aff; }
 .model-advisor label { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .model-advisor button, .model-advisor select { padding: 8px 12px; border: 1px solid #8056bc; border-radius: 8px; background: #302044; color: #fff; max-width: 100%; }
 .model-advisor p { color: #d3c7df; }
+.system-monitor { padding-block: 20px; }
+.system-monitor-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 175px), 1fr)); gap: 12px; }
+.system-monitor-grid h2 { font-size: 1rem; }
+.system-monitor-grid meter { width: 100%; accent-color: #c794ef; }

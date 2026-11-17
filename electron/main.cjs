@@ -498,6 +498,11 @@ function assertUpdateSender(event) {
     throw new Error("Updates sind nur im installierten Hauptfenster verfügbar.");
   }
 }
+const systemMonitor = require("./services/system-monitor.cjs");
+registerKnowledgeHandler("system:metrics", systemMonitor.metrics);
+registerKnowledgeHandler("system:temperature", systemMonitor.temperature);
+registerKnowledgeHandler("updates:version", () => require("../package.json").version);
+
 ipcMain.handle("updates:check", (event) => {
   assertUpdateSender(event);
   return latestUpdate();

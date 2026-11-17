@@ -2,7 +2,12 @@ const { contextBridge, ipcRenderer } = require("electron");
 let activeChatRequestId = null;
 
 contextBridge.exposeInMainWorld("unfeal", {
+  system: {
+    metrics: () => ipcRenderer.invoke("system:metrics"),
+    temperature: () => ipcRenderer.invoke("system:temperature")
+  },
   updates: {
+    version: () => ipcRenderer.invoke("updates:version"),
     check: () => ipcRenderer.invoke("updates:check"),
     install: (version) => ipcRenderer.invoke("updates:install", version)
   },

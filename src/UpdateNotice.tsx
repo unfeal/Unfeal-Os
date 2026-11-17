@@ -5,6 +5,7 @@ export type UpdateStatus =
   | { state: "available"; version: string; next: string };
 
 export default function UpdateNotice() {
+  const [version, setVersion] = useState("");
   const [update, setUpdate] = useState<UpdateStatus>();
   const [installing, setInstalling] = useState(false);
   const [error, setError] = useState("");
@@ -29,6 +30,10 @@ export default function UpdateNotice() {
     return () => { mounted = false; window.clearInterval(timer); };
   }, [installing]);
 
+  useEffect(() => {
+    void window.unfeal.updates.version().then(setVersion).catch(() => {});
+  }, []);
+
   async function install(next: string) {
     setInstalling(true);
     setError("");
@@ -40,10 +45,11 @@ export default function UpdateNotice() {
     }
   }
 
-  if (update?.state !== "available") return null;
+  const next = update?.state === "available" ? update.next : undefined;
   return <aside className="update-notice" aria-label="Programmupdate">
-    <span role="status">{installing ? "Update wird heruntergeladen und installiert …" : `Version ${update.next} verfügbar`}</span>
-    <button type="button" disabled={installing} onClick={() => void install(update.next)}>Update installieren</button>
+    <span>Installiert: {version || update?.version || "…"} </span>
+    <span role="status">{installing ? "Update wird heruntergeladen und installiert …" : next ? `Verfügbar: ${next}` : update?.state === "current" ? "Auf dem neuesten Stand" : ""}</span>
+    {next && <button type="button" disabled={installing} onClick={() => void install(next)}>Update installieren</button>}
     {error && <p role="alert">{error}</p>}
   </aside>;
 }

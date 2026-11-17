@@ -1,10 +1,11 @@
+import SystemMonitor, { type SystemSample } from "./SystemMonitor";
 import ModelAdvisor, { type Hardware } from "./ModelAdvisor";
 import UpdateNotice, { type UpdateStatus } from "./UpdateNotice";
 import JarvisPanel from "./JarvisPanel";
 import { Fragment, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
-const pages = ["Overview", "AI Chat", "Projects", "Models", "Knowledge", "Settings"];
+const pages = ["Overview", "AI Chat", "Projects", "Models", "Knowledge", "Systemmonitor", "Settings"];
 
 type Project = {
   id: string;
@@ -372,7 +373,8 @@ declare global {
   interface Window {
     unfeal: {
       jarvis: { openTool: (tool: string) => Promise<void> };
-      updates: { check: () => Promise<UpdateStatus>; install: (version: string) => Promise<void> };
+      system: { metrics: () => Promise<SystemSample>; temperature: () => Promise<number | null> };
+      updates: { version: () => Promise<string>; check: () => Promise<UpdateStatus>; install: (version: string) => Promise<void> };
       workspace: {
         choose: () => Promise<string | null>;
         files: (root: string) => Promise<Array<{ name: string; content: string }> | null>;
@@ -1659,6 +1661,9 @@ export default function App() {
             )}
           </div>
         );
+
+      case "Systemmonitor":
+        return <SystemMonitor />;
 
       case "Models":
         return (
