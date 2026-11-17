@@ -8,9 +8,17 @@ param(
     [int] $WaitForProcessId,
     [switch] $FromApp,
     [switch] $CleanOnlineStage,
-    [string] $ExpectedVersion
+    [string] $ExpectedVersion,
+    [string] $ReadyFile,
+    [string] $LogPath
 )
 $ErrorActionPreference = 'Stop'
+if ($LogPath) {
+    Start-Transcript -LiteralPath $LogPath -Force | Out-Null
+}
+if ($ReadyFile) {
+    Set-Content -LiteralPath $ReadyFile -Value 'READY'
+}
 if (-not $UpdateZip) {
     $UpdateZip = Join-Path $PSScriptRoot 'UNFEAL-OS.zip'
 }

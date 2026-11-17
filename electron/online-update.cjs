@@ -63,23 +63,30 @@ async function installUpdate(app, expectedVersion) {
     staged = await fs.mkdtemp(path.join(app.getPath("temp"), "unfeal-update-"));
     const zipPath = path.join(staged, packageName);
     const helper = path.join(staged, "startup-update.ps1");
-    const log = await fs.open(path.join(app.getPath("userData"), "online-update.log"), "w");
-    try {
+    const readyFile = path.join(staged, "ready");
+    const logPath = path.join(app.getPath("userData"), "online-update.log");
+    {
       await fs.writeFile(zipPath, zip);
       await fs.copyFile(path.join(__dirname, "startup-update.ps1"), helper);
       const powershell = path.join(process.env.SystemRoot || "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
       const child = spawn(powershell, [
         "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", helper,
         "-InstallDir", path.dirname(process.execPath), "-UpdateZip", zipPath,
-        "-ExpectedVersion", update.next, "-WaitForProcessId", String(process.pid), "-FromApp", "-Launch", "-CleanOnlineStage"
-      ], { windowsHide: true, detached: true, stdio: ["ignore", log.fd, log.fd] });
+        "-ReadyFile", readyFile, "-LogPath", logPath, "-ExpectedVersion", update.next, "-WaitForProcessId", String(process.pid), "-FromApp", "-Launch", "-CleanOnlineStage"
+      ], { windowsHide: true, detached: false, cwd: staged, stdio: "ignore" });
       await new Promise((resolve, reject) => {
         child.once("spawn", resolve);
         child.once("error", reject);
       });
       child.unref();
-    } finally {
-      await log.close();
+      const deadline = Date.now() + 20000;
+      let ready = false;
+      while (Date.now() < deadline) {
+        ready = await fs.access(readyFile).then(() => true, () => false);
+        if (ready) break;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      if (!ready) throw new Error("Der Installationshelfer konnte nicht gestartet werden. Die App bleibt geöffnet.");
     }
     setImmediate(() => app.quit());
   } catch (error) {
@@ -90,3 +97,4 @@ async function installUpdate(app, expectedVersion) {
 }
 
 module.exports = { latestUpdate, installUpdate };
+
