@@ -289,6 +289,22 @@ registerKnowledgeHandler("jarvis:open-tool", async (tool) => {
     ["editor", ["System32", "notepad.exe"]],
     ["calculator", ["System32", "calc.exe"]]
   ]);
+  if (tool === "choose") {
+    const selection = await dialog.showOpenDialog(mainWindow, {
+      title: "Windows-Programm auswählen",
+      properties: ["openFile"],
+      filters: [{ name: "Windows-Programme", extensions: ["exe"] }]
+    });
+    if (selection.canceled) return;
+    const executable = selection.filePaths[0];
+    if (!executable || path.extname(executable).toLowerCase() !== ".exe") {
+      throw new Error("Wähle eine EXE-Datei aus.");
+    }
+    if (await shell.openPath(executable)) {
+      throw new Error("Das Windows-Programm konnte nicht geöffnet werden.");
+    }
+    return;
+  }
   const executable = tools.get(tool);
   if (!executable) throw new Error("Unbekanntes Windows-Programm.");
   const error = await shell.openPath(path.join(process.env.SystemRoot || "C:\\Windows", ...executable));

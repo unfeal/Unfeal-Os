@@ -101,7 +101,7 @@ export default function JarvisPanel({ busy, progress, reply, onDictation }: {
         <section aria-label="PC-Steuerung">
           <h2>PC-Steuerung</h2>
           <div className="jarvis-controls">
-            {[["explorer", "Explorer"], ["editor", "Editor"], ["calculator", "Rechner"]].map(([tool, label]) =>
+            {[["explorer", "Explorer"], ["editor", "Editor"], ["calculator", "Rechner"], ["choose", "Anderes Programm"]].map(([tool, label]) =>
               <button key={tool} type="button" onClick={async () => {
                 setError("");
                 try { await window.unfeal.jarvis.openTool(tool); }
