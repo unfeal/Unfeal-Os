@@ -5,7 +5,7 @@ export interface Hardware {
   threads: number;
   ramGiB: number;
   freeGiB: number;
-  nvidiaGiB: number;
+  nvidiaGiB: number | null;
   graphics: string[];
 }
 
@@ -28,9 +28,12 @@ export default function ModelAdvisor({ installed }: { installed: string[] }) {
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const category = categories[selected];
-  const budget = hardware ? Math.max(Math.min(hardware.ramGiB * .65, hardware.freeGiB - 1), hardware.nvidiaGiB * .85) : 0;
+  const budget = hardware ? Math.max(Math.min(hardware.ramGiB * .65, hardware.freeGiB - 1), (hardware.nvidiaGiB ?? 0) * .85) : 0;
   const recommendation = [...category.models].reverse().find(([, estimate]) => estimate <= budget);
-  const command = recommendation && `ollama pull ${recommendation[0]}`;
+  const smallest = category.models[0];
+  const canFreeMemory = hardware && !recommendation && smallest[1] <= hardware.ramGiB * .65;
+  const candidate = recommendation ?? (canFreeMemory ? smallest : undefined);
+  const command = candidate && `ollama pull ${candidate[0]}`;
 
   async function scan() {
     setBusy(true);
@@ -53,18 +56,19 @@ export default function ModelAdvisor({ installed }: { installed: string[] }) {
     {hardware && <>
       <p>{hardware.cpu} · {hardware.threads} logische Kerne · {hardware.ramGiB.toFixed(1)} GiB RAM ({hardware.freeGiB.toFixed(1)} frei)</p>
       {hardware.graphics.length > 0 && <p>Grafik: {hardware.graphics.join(", ")}</p>}
-      <p>{hardware.nvidiaGiB ? `NVIDIA-Grafikspeicher: ${hardware.nvidiaGiB.toFixed(1)} GiB` : "Schätzung anhand des Arbeitsspeichers. Dedizierter Grafikspeicher konnte nicht gemessen werden."}</p>
+      <p>{hardware.nvidiaGiB !== null ? `Freier NVIDIA-Grafikspeicher: ${hardware.nvidiaGiB.toFixed(1)} GiB` : "Schätzung anhand des Arbeitsspeichers. Dedizierter Grafikspeicher konnte nicht gemessen werden."}</p>
       <div aria-live="polite">
-        {recommendation ? <>
-          <h3>{recommendation[0]}</h3>
-          <p>{installed.includes(recommendation[0]) ? "Bereits installiert · " : ""}Geschätzter Bedarf: {recommendation[1]} GiB bei kurzem Kontext.</p>
+        {candidate ? <>
+          <h3>{candidate[0]}</h3>
+          <p>{installed.includes(candidate[0]) ? "Bereits installiert · " : ""}Geschätzter Bedarf: {candidate[1]} GiB bei kurzem Kontext.</p>
+          {canFreeMemory && <p>Aktuell zu wenig freier Speicher. Schließe andere Programme und prüfe erneut, bevor du das Modell lädst.</p>}
           <div className="model-advisor-command"><code>{command}</code>
             <button type="button" onClick={async () => {
               try { await navigator.clipboard.writeText(command!); setCopied(true); }
               catch { setError("Kopieren nicht möglich. Du kannst den Befehl markieren."); }
             }}>{copied ? "Kopiert" : "Befehl kopieren"}</button>
           </div>
-        </> : <p>Für diese Kategorie passt momentan kein Modell aus der Auswahl in den geschätzten Speicher.</p>}
+        </> : <p>Das kleinste Modell dieser Kategorie ist {smallest[0]} und braucht geschätzt {smallest[1]} GiB. Aktuelles Speicherbudget: {Math.max(0, budget).toFixed(1)} GiB.</p>}
       </div>
     </>}
   </section>;
