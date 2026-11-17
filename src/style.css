@@ -426,3 +426,10 @@ h1 span { color: #b58aff; }
   .app > .right-panel { display: none; }
   .main { min-width: 0; }
 }
+.model-advisor { max-width: 800px; margin: 24px auto; padding: 20px; text-align: left; border: 1px solid #b184e344; border-radius: 14px; background: #20152de8; overflow-wrap: anywhere; }
+.model-advisor-heading, .model-advisor-command { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.model-advisor-heading { justify-content: space-between; margin-bottom: 14px; }
+.model-advisor h2, .model-advisor h3 { margin: 0; }
+.model-advisor label { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.model-advisor button, .model-advisor select { padding: 8px 12px; border: 1px solid #8056bc; border-radius: 8px; background: #302044; color: #fff; max-width: 100%; }
+.model-advisor p { color: #d3c7df; }

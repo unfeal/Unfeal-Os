@@ -61,6 +61,7 @@ contextBridge.exposeInMainWorld("unfeal", {
     rename: (id, title) => ipcRenderer.invoke("chats:rename", id, title)
   },
   ollama: {
+    scan: () => ipcRenderer.invoke("ollama:scan"),
     list: () => ipcRenderer.invoke("ollama:list")
   },
   huggingface: {

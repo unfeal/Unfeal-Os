@@ -1,3 +1,4 @@
+import ModelAdvisor, { type Hardware } from "./ModelAdvisor";
 import UpdateNotice, { type UpdateStatus } from "./UpdateNotice";
 import JarvisPanel from "./JarvisPanel";
 import { Fragment, useEffect, useRef, useState } from "react";
@@ -382,6 +383,7 @@ declare global {
         delete: (id: string) => Promise<Project[]>;
       };
       ollama: {
+        scan: () => Promise<Hardware>;
         list: () => Promise<{ models: OllamaModel[] }>;
       };
       huggingface: {
@@ -1663,6 +1665,7 @@ export default function App() {
             <div className="eyebrow">OLLAMA / LOCAL AI</div>
             <h1>Local <span>Models</span></h1>
             <p>Verwalte deine lokal installierten KI-Modelle.</p>
+            <ModelAdvisor installed={models.map(({ name }) => name)} />
 
             <div style={{ maxWidth: 800, margin: "28px auto", textAlign: "left" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
