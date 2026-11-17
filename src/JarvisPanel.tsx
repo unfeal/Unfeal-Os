@@ -98,6 +98,18 @@ export default function JarvisPanel({ busy, progress, reply, onDictation }: {
         <small>Das Diktat nutzt den Sprachdienst der Laufzeit. Prüfe den Text vor dem Senden.</small>
       </div>
       <div className="jarvis-workbench">
+        <section aria-label="PC-Steuerung">
+          <h2>PC-Steuerung</h2>
+          <div className="jarvis-controls">
+            {[["explorer", "Explorer"], ["editor", "Editor"], ["calculator", "Rechner"]].map(([tool, label]) =>
+              <button key={tool} type="button" onClick={async () => {
+                setError("");
+                try { await window.unfeal.jarvis.openTool(tool); }
+                catch { setError(`${label} konnte nicht geöffnet werden.`); }
+              }}>{label} öffnen</button>
+            )}
+          </div>
+        </section>
         <section aria-label="Agentenaktivität">
           <h2>Agentenaktivität</h2>
           {progress.length > 0 ? <ol>{progress.slice(-6).map((item, index) => <li key={index}>{item}</li>)}</ol> : <p>Aktiviere Multi-Agent und sende einen Auftrag, um den Fortschritt hier zu sehen.</p>}

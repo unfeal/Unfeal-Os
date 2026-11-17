@@ -371,6 +371,7 @@ function DesktopClock() {
 declare global {
   interface Window {
     unfeal: {
+      jarvis: { openTool: (tool: string) => Promise<void> };
       updates: { check: () => Promise<UpdateStatus>; install: (version: string) => Promise<void> };
       workspace: {
         choose: () => Promise<string | null>;

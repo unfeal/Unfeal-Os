@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld("unfeal", {
     check: () => ipcRenderer.invoke("updates:check"),
     install: (version) => ipcRenderer.invoke("updates:install", version)
   },
+  jarvis: { openTool: (tool) => ipcRenderer.invoke("jarvis:open-tool", tool) },
   app: {
     openExternal: (url) => ipcRenderer.invoke("app:open-external", url)
   },

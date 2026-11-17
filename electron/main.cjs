@@ -282,6 +282,19 @@ ipcMain.handle("projects:delete", (_event, id) => {
 
 registerKnowledgeHandler("ollama:scan", () => require("./services/hardware.cjs").scanHardware(app));
 
+registerKnowledgeHandler("jarvis:open-tool", async (tool) => {
+  if (process.platform !== "win32") throw new Error("Nur unter Windows verfügbar.");
+  const tools = new Map([
+    ["explorer", ["explorer.exe"]],
+    ["editor", ["System32", "notepad.exe"]],
+    ["calculator", ["System32", "calc.exe"]]
+  ]);
+  const executable = tools.get(tool);
+  if (!executable) throw new Error("Unbekanntes Windows-Programm.");
+  const error = await shell.openPath(path.join(process.env.SystemRoot || "C:\\Windows", ...executable));
+  if (error) throw new Error("Das Windows-Programm konnte nicht geöffnet werden.");
+});
+
 ipcMain.handle("ollama:list", async () => {
   const response = await fetch("http://127.0.0.1:11434/api/tags");
 
