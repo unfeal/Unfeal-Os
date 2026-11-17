@@ -69,11 +69,17 @@ async function installUpdate(app, expectedVersion) {
       await fs.writeFile(zipPath, zip);
       await fs.copyFile(path.join(__dirname, "startup-update.ps1"), helper);
       const powershell = path.join(process.env.SystemRoot || "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
-      const child = spawn(powershell, [
+      const helperArgs = [
         "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", helper,
         "-InstallDir", path.dirname(process.execPath), "-UpdateZip", zipPath,
         "-ReadyFile", readyFile, "-LogPath", logPath, "-ExpectedVersion", update.next, "-WaitForProcessId", String(process.pid), "-FromApp", "-Launch", "-CleanOnlineStage"
-      ], { windowsHide: true, detached: false, cwd: staged, stdio: "ignore" });
+      ];
+      const quotePowerShell = (value) => "'" + value.replaceAll("'", "''") + "'";
+      const command = "Start-Process -WindowStyle Hidden -FilePath " + quotePowerShell(powershell) +
+        " -ArgumentList " + quotePowerShell(helperArgs.map((value) => '"' + value.replaceAll('"', '\"') + '"').join(" "));
+      const child = spawn(powershell, [
+        "-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(command, "utf16le").toString("base64")
+      ], { windowsHide: true, cwd: staged, stdio: "ignore" });
       await new Promise((resolve, reject) => {
         child.once("spawn", resolve);
         child.once("error", reject);
