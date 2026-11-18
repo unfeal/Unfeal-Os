@@ -32,4 +32,5 @@ val sharedBrandAssets = tasks.register<Copy>("copySharedBrandAssets") {
     from(rootProject.file("../public/unfeal-icon.jpg"))
     into(layout.buildDirectory.dir("generated/brand-assets"))
 }
-android.sourceSets["main"].assets.srcDir(sharedBrandAssets)
+android.sourceSets["main"].assets.srcDir(layout.buildDirectory.dir("generated/brand-assets"))
+tasks.named("preBuild") { dependsOn(sharedBrandAssets) }
