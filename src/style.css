@@ -453,3 +453,13 @@ h1 span { color: #b58aff; }
 .brand-avatar img { display: block; border-radius: 50%; object-fit: cover; }
 .brand-avatar:focus-visible { outline: 2px solid #dfbcff; outline-offset: 3px; }
 .brand-avatar:disabled { opacity: .6; cursor: default; }
+.account-screen { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: radial-gradient(ellipse at top, #302044, #090810 70%); }
+.account-card { width: min(100%, 400px); padding: 28px; background: #171321; border: 1px solid #674782; border-radius: 16px; }
+.account-card img { display: block; border-radius: 50%; }
+.account-card h1 { font-size: 1.5rem; }
+.account-card form, .account-card label { display: grid; gap: 8px; }
+.account-card form { gap: 16px; }
+.account-card input, .account-card button { width: 100%; padding: 10px; border: 1px solid #8056bc; border-radius: 8px; font: inherit; }
+.account-card input { background: #100e17; color: #eeeaf8; }
+.account-card button { background: #bb8ff3; color: #1c0d2b; font-weight: 700; }
+.account-card p { color: #d3c7df; }

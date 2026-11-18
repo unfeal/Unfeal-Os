@@ -6,6 +6,11 @@ contextBridge.exposeInMainWorld("unfeal", {
     metrics: () => ipcRenderer.invoke("system:metrics"),
     temperature: () => ipcRenderer.invoke("system:temperature")
   },
+  account: {
+    status: () => ipcRenderer.invoke("account:status"),
+    authenticate: (mode, name, password) => ipcRenderer.invoke("account:authenticate", mode, name, password),
+    logout: () => ipcRenderer.invoke("account:logout")
+  },
   updates: {
     version: () => ipcRenderer.invoke("updates:version"),
     check: () => ipcRenderer.invoke("updates:check"),

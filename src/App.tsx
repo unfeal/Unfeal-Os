@@ -372,6 +372,11 @@ function DesktopClock() {
 declare global {
   interface Window {
     unfeal: {
+      account: {
+        status: () => Promise<import("./AccountGate").AccountStatus>;
+        authenticate: (mode: "register" | "login", name: string, password: string) => Promise<string>;
+        logout: () => Promise<void>;
+      };
       jarvis: { openTool: (tool: string) => Promise<void> };
       system: { metrics: () => Promise<SystemSample>; temperature: () => Promise<number | null> };
       updates: { version: () => Promise<string>; check: () => Promise<UpdateStatus>; install: (version: string) => Promise<void> };
@@ -445,7 +450,7 @@ declare global {
   }
 }
 
-export default function App() {
+export default function App({ onLogout }: { onLogout: () => Promise<void> }) {
   const [activePage, setActivePage] = useState("Overview");
   const [message, setMessage] = useState("");
   const [projects, setProjects] = useState<Project[]>([]);
@@ -2010,6 +2015,8 @@ export default function App() {
         }}>
           ＋ New Chat
         </button>
+
+        <button type="button" disabled={chatLoading} onClick={() => void onLogout()}>Abmelden</button>
 
         <p className="section-label">WORKSPACE</p>
 

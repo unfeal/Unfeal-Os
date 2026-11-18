@@ -15,7 +15,15 @@ let workspaceRoot;
 const activeChatStreams = new Map();
 const activeChatSummaries = new Map();
 
+let account;
+function assertAppSender(event) {
+  if (!mainWindow || event.sender !== mainWindow.webContents || event.senderFrame !== event.sender.mainFrame) {
+    throw new Error("Unerlaubtes App-Fenster.");
+  }
+}
 function assertKnowledgeSender(event) {
+  assertAppSender(event);
+  if (!account?.user) throw new Error("Bitte melde dich an.");
   if (!mainWindow || event.sender !== mainWindow.webContents) {
     throw new Error("Knowledge API is available only to the UNFEAL window.");
   }
@@ -251,9 +259,9 @@ function writeProjects(projects) {
   return projects;
 }
 
-ipcMain.handle("projects:list", () => readProjects());
+registerKnowledgeHandler("projects:list", () => readProjects());
 
-ipcMain.handle("projects:create", (_event, project) => {
+registerKnowledgeHandler("projects:create", (project) => {
   if (!project || typeof project.name !== "string" || !project.name.trim()) {
     throw new Error("A project name is required.");
   }
@@ -273,7 +281,7 @@ ipcMain.handle("projects:create", (_event, project) => {
   return newProject;
 });
 
-ipcMain.handle("projects:delete", (_event, id) => {
+registerKnowledgeHandler("projects:delete", (id) => {
   const projects = readProjects().filter(project => project.id !== id);
   writeProjects(projects);
   return projects;
@@ -311,7 +319,7 @@ registerKnowledgeHandler("jarvis:open-tool", async (tool) => {
   if (error) throw new Error("Das Windows-Programm konnte nicht geöffnet werden.");
 });
 
-ipcMain.handle("ollama:list", async () => {
+registerKnowledgeHandler("ollama:list", async () => {
   const response = await fetch("http://127.0.0.1:11434/api/tags");
 
   if (!response.ok) {
@@ -382,6 +390,7 @@ ipcMain.handle("providers:chat", async (event, request) => {
 });
 
 ipcMain.on("providers:chat:stream:start", (event, payload) => {
+  if (!account?.user || event.senderFrame !== event.sender.mainFrame) return;
   if (!mainWindow || event.sender !== mainWindow.webContents) return;
   const { requestId, request } = payload || {};
   if (typeof requestId !== "string" || !/^[0-9]+-[0-9a-f]+$/i.test(requestId)) return;
@@ -521,7 +530,22 @@ ipcMain.handle("updates:install", (event, version) => {
   assertUpdateSender(event);
   return installUpdate(app, version);
 });
+ipcMain.handle("account:status", (event) => {
+  assertAppSender(event);
+  return account.status();
+});
+ipcMain.handle("account:authenticate", (event, mode, name, password) => {
+  assertAppSender(event);
+  if (mode !== "login" && mode !== "register") throw new Error("Ungültiger Vorgang.");
+  return account.authenticate(mode, name, password);
+});
+ipcMain.handle("account:logout", (event) => {
+  assertAppSender(event);
+  for (const controller of activeChatStreams.values()) controller.abort();
+  account.logout();
+});
 app.whenReady().then(() => {
+  account = require("./services/local-account.cjs").createLocalAccount(path.join(app.getPath("userData"), "local-account.json"));
   knowledgeStore = createKnowledgeStore(app.getPath("userData"));
   secretStore = createSecretStore(safeStorage, app.getPath("userData"));
   createWindow();
