@@ -267,10 +267,8 @@ class MainActivity : Activity() {
             val temp = battery?.getIntExtra(android.os.BatteryManager.EXTRA_TEMPERATURE, Int.MIN_VALUE)
             val gib = 1024.0 * 1024 * 1024
             val temperature = temp?.takeUnless { it == Int.MIN_VALUE }?.let { "${it / 10.0} °C" } ?: "Nicht verfügbar"
-            readings.text = "CPU: ${Runtime.getRuntime().availableProcessors()} logische Kerne
-" +
-                "RAM: ${String.format(java.util.Locale.GERMANY, "%.1f von %.1f GiB belegt", (memory.totalMem - memory.availMem) / gib, memory.totalMem / gib)}
-" +
+            readings.text = "CPU: ${Runtime.getRuntime().availableProcessors()} logische Kerne\n" +
+                "RAM: ${String.format(java.util.Locale.GERMANY, "%.1f von %.1f GiB belegt", (memory.totalMem - memory.availMem) / gib, memory.totalMem / gib)}\n" +
                 "Akkutemperatur: $temperature"
         }
         monitor.addView(Button(this).apply {
