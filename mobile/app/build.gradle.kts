@@ -10,8 +10,8 @@ android {
         applicationId = "os.unfeal.mobile"
         minSdk = 24
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 3
+        versionName = "0.3.0"
         ndk { abiFilters += "arm64-v8a" }
     }
     compileOptions {
@@ -26,3 +26,10 @@ dependencies {
     implementation("com.google.ai.edge.litertlm:litertlm-android:0.18.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
 }
+
+val sharedBrandAssets = tasks.register<Copy>("copySharedBrandAssets") {
+    from(rootProject.file("../src/assets/cherry-wallpaper.png"))
+    from(rootProject.file("../public/unfeal-icon.jpg"))
+    into(layout.buildDirectory.dir("generated/brand-assets"))
+}
+android.sourceSets["main"].assets.srcDir(sharedBrandAssets)

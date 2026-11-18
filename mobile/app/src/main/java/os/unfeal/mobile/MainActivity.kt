@@ -4,6 +4,12 @@ import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.Drawable
+import android.widget.FrameLayout
+import android.widget.ImageView
+import android.content.res.ColorStateList
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -30,14 +36,104 @@ class MainActivity : Activity() {
     private lateinit var send: Button
     private val modelFile by lazy { File(filesDir, "model.litertlm") }
 
+    private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
+
+    private fun surface(color: Int, radius: Int) = GradientDrawable().apply {
+        setColor(color)
+        cornerRadius = dp(radius).toFloat()
+        setStroke(dp(1), 0x55b184e3)
+    }
+
+    private fun panel() = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        background = surface(0xe6160f20.toInt(), 16)
+        setPadding(dp(16), dp(16), dp(16), dp(16))
+    }
+
+    private fun heading(title: String) = TextView(this).apply {
+        text = title
+        textSize = 27f
+        setTextColor(0xffeeeaf8.toInt())
+        typeface = Typeface.DEFAULT_BOLD
+    }
+
+    private fun styleButton(button: Button, primary: Boolean = false) {
+        button.isAllCaps = false
+        button.minimumHeight = dp(44)
+        button.background = surface(if (primary) 0xffbb8ff3.toInt() else 0xff302044.toInt(), 9)
+        button.setTextColor(ColorStateList(
+            arrayOf(intArrayOf(-android.R.attr.state_enabled), intArrayOf()),
+            intArrayOf(0xffa89bb6.toInt(), if (primary) 0xff1c0d2b.toInt() else 0xffeeeaf8.toInt())
+        ))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val pad = (20 * resources.displayMetrics.density).toInt()
+        val root = FrameLayout(this)
+        val wallpaper = ImageView(this).apply {
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            assets.open("cherry-wallpaper.png").use { setImageDrawable(Drawable.createFromStream(it, null)) }
+        }
+        root.addView(wallpaper, FrameLayout.LayoutParams(-1, -1))
+        root.addView(View(this).apply { setBackgroundColor(0x99170a26.toInt()) }, FrameLayout.LayoutParams(-1, -1))
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(pad, pad, pad, pad)
-            setBackgroundColor(0xff130d1c.toInt())
+            setPadding(dp(12), dp(8), dp(12), dp(8))
         }
+        root.addView(layout, FrameLayout.LayoutParams(-1, -1))
+        root.setOnApplyWindowInsetsListener { view, insets ->
+            val bars = if (android.os.Build.VERSION.SDK_INT >= 30) insets.getInsets(
+                android.view.WindowInsets.Type.systemBars() or android.view.WindowInsets.Type.ime()
+            ) else null
+            view.setPadding(bars?.left ?: insets.systemWindowInsetLeft, bars?.top ?: insets.systemWindowInsetTop,
+                bars?.right ?: insets.systemWindowInsetRight, bars?.bottom ?: insets.systemWindowInsetBottom)
+            insets
+        }
+        val overview = panel()
+        val models = panel()
+        val chat = panel()
+        val brand = LinearLayout(this).apply {
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            background = surface(0xe6160f20.toInt(), 12)
+            setPadding(dp(12), dp(8), dp(12), dp(8))
+            val icon = ImageView(this@MainActivity).apply {
+                assets.open("unfeal-icon.jpg").use { setImageDrawable(Drawable.createFromStream(it, null)) }
+                scaleType = ImageView.ScaleType.CENTER_CROP
+            }
+            addView(icon, LinearLayout.LayoutParams(dp(36), dp(36)))
+            addView(TextView(this@MainActivity).apply {
+                text = "UNFEAL OS"
+                textSize = 19f
+                typeface = Typeface.DEFAULT_BOLD
+                letterSpacing = .08f
+                setPadding(dp(10), 0, 0, 0)
+            })
+        }
+        layout.addView(brand)
+        val navigation = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, dp(8), 0, dp(8))
+        }
+        layout.addView(navigation)
+        val pages = listOf("Overview" to overview, "AI Chat" to chat, "Models" to models)
+        val content = FrameLayout(this)
+        layout.addView(content, LinearLayout.LayoutParams(-1, 0, 1f))
+        val buttons = pages.map { (name, page) ->
+            content.addView(page, FrameLayout.LayoutParams(-1, -1))
+            Button(this).apply {
+                text = name
+                navigation.addView(this, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(4) })
+            }
+        }
+        fun selectPage(index: Int) {
+            pages.forEachIndexed { position, (_, page) -> page.visibility = if (position == index) View.VISIBLE else View.GONE }
+            buttons.forEachIndexed { position, button ->
+                button.isSelected = position == index
+                styleButton(button, position == index)
+            }
+        }
+        buttons.forEachIndexed { index, button -> button.setOnClickListener { selectPage(index) } }
+        selectPage(0)
         status = TextView(this).apply { text = "Wähle eine .litertlm-Datei aus." }
         choose = Button(this).apply {
             text = "Modell auswählen"
@@ -56,7 +152,17 @@ class MainActivity : Activity() {
             isEnabled = false
             setOnClickListener { sendMessage() }
         }
-        layout.addView(TextView(this).apply { text = "UNFEAL Mobile"; textSize = 30f })
+        overview.addView(heading("Overview"))
+        overview.addView(TextView(this).apply {
+            text = "Was möchtest du tun?"
+            textSize = 19f
+            setPadding(0, dp(16), 0, dp(12))
+        })
+        overview.addView(Button(this).apply {
+            text = "AI Chat öffnen"
+            styleButton(this, true)
+            setOnClickListener { selectPage(1) }
+        })
         val installed = packageManager.getPackageInfo(packageName, 0).versionName ?: "0.0.0"
         val version = TextView(this).apply { text = "Installiert: $installed" }
         val updates = Button(this).apply { text = "Nach Updates suchen" }
@@ -85,12 +191,18 @@ class MainActivity : Activity() {
             }
         }
         updates.setOnClickListener { checkUpdates() }
-        layout.addView(version)
-        layout.addView(updates)
+        version.setPadding(0, dp(16), 0, dp(8))
+        styleButton(updates)
+        overview.addView(version)
+        overview.addView(updates)
         checkUpdates()
-        layout.addView(status)
-        layout.addView(choose)
-        layout.addView(Button(this).apply {
+        models.addView(heading("Local Models"))
+        status.setPadding(0, dp(12), 0, dp(12))
+        models.addView(status)
+        styleButton(choose, true)
+        models.addView(choose)
+        models.addView(Button(this).apply {
+            styleButton(this)
             text = "Passendes Modell finden"
             setOnClickListener {
                 val memory = android.app.ActivityManager.MemoryInfo()
@@ -111,10 +223,22 @@ class MainActivity : Activity() {
                     .show()
             }
         })
-        layout.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
-        layout.addView(prompt)
-        layout.addView(send)
-        setContentView(layout)
+        chat.addView(heading("AI Chat"))
+        chat.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        val composer = LinearLayout(this).apply {
+            gravity = android.view.Gravity.BOTTOM
+            background = surface(0xff20152d.toInt(), 12)
+            setPadding(dp(8), dp(4), dp(8), dp(4))
+        }
+        prompt.background = null
+        prompt.setPadding(dp(8), dp(10), dp(8), dp(10))
+        composer.addView(prompt, LinearLayout.LayoutParams(0, -2, 1f))
+        send.text = "↑"
+        send.contentDescription = "Nachricht senden"
+        styleButton(send, true)
+        composer.addView(send, LinearLayout.LayoutParams(dp(48), dp(44)))
+        chat.addView(composer)
+        setContentView(root)
         if (modelFile.isFile) loadModel(null)
     }
 
