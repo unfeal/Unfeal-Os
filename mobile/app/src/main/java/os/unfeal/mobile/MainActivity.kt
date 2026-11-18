@@ -14,6 +14,9 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import android.widget.HorizontalScrollView
+import android.speech.tts.TextToSpeech
+import org.json.JSONArray
 import android.widget.TextView
 import com.google.ai.edge.litertlm.Backend
 import com.google.ai.edge.litertlm.Conversation
@@ -24,6 +27,10 @@ import java.util.concurrent.Executors
 import kotlinx.coroutines.runBlocking
 
 class MainActivity : Activity() {
+    private val preferences by lazy { getSharedPreferences("workspace", MODE_PRIVATE) }
+    private var speech: TextToSpeech? = null
+    private var speechReady = false
+    private var lastReply = ""
     private val updateWorker = Executors.newSingleThreadExecutor()
     private val worker = Executors.newSingleThreadExecutor()
     private var engine: Engine? = null
@@ -114,15 +121,25 @@ class MainActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             setPadding(0, dp(8), 0, dp(8))
         }
-        layout.addView(navigation)
-        val pages = listOf("Overview" to overview, "AI Chat" to chat, "Models" to models)
+        layout.addView(HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            addView(navigation)
+        })
+        val projects = panel()
+        val knowledge = panel()
+        val monitor = panel()
+        val settings = panel()
+        val jarvis = panel()
+        val pages = listOf("Overview" to overview, "AI Chat" to chat, "Models" to models,
+            "Projects" to projects, "Knowledge" to knowledge, "Systemmonitor" to monitor,
+            "Settings" to settings, "JARVIS" to jarvis)
         val content = FrameLayout(this)
         layout.addView(content, LinearLayout.LayoutParams(-1, 0, 1f))
         val buttons = pages.map { (name, page) ->
             content.addView(page, FrameLayout.LayoutParams(-1, -1))
             Button(this).apply {
                 text = name
-                navigation.addView(this, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(4) })
+                navigation.addView(this, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(6) })
             }
         }
         fun selectPage(index: Int) {
@@ -238,8 +255,116 @@ class MainActivity : Activity() {
         styleButton(send, true)
         composer.addView(send, LinearLayout.LayoutParams(dp(48), dp(44)))
         chat.addView(composer)
+        populateEntries(projects, "Projects", "projects", "Projektname")
+        populateEntries(knowledge, "Knowledge", "knowledge", "Notiz")
+        monitor.addView(heading("Systemmonitor"))
+        val readings = TextView(this).apply { setPadding(0, dp(16), 0, dp(16)) }
+        monitor.addView(readings)
+        fun refreshReadings() {
+            val memory = android.app.ActivityManager.MemoryInfo()
+            getSystemService(android.app.ActivityManager::class.java).getMemoryInfo(memory)
+            val battery = registerReceiver(null, android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+            val temp = battery?.getIntExtra(android.os.BatteryManager.EXTRA_TEMPERATURE, Int.MIN_VALUE)
+            val gib = 1024.0 * 1024 * 1024
+            val temperature = temp?.takeUnless { it == Int.MIN_VALUE }?.let { "${it / 10.0} °C" } ?: "Nicht verfügbar"
+            readings.text = "CPU: ${Runtime.getRuntime().availableProcessors()} logische Kerne
+" +
+                "RAM: ${String.format(java.util.Locale.GERMANY, "%.1f von %.1f GiB belegt", (memory.totalMem - memory.availMem) / gib, memory.totalMem / gib)}
+" +
+                "Akkutemperatur: $temperature"
+        }
+        monitor.addView(Button(this).apply {
+            text = "Messwerte aktualisieren"
+            styleButton(this)
+            setOnClickListener { refreshReadings() }
+        })
+        refreshReadings()
+
+        settings.addView(heading("Settings"))
+        settings.addView(android.widget.Switch(this).apply {
+            text = "Sakura-Hintergrund anzeigen"
+            isChecked = preferences.getBoolean("wallpaper", true)
+            wallpaper.visibility = if (isChecked) View.VISIBLE else View.GONE
+            setOnCheckedChangeListener { _, enabled ->
+                preferences.edit().putBoolean("wallpaper", enabled).apply()
+                wallpaper.visibility = if (enabled) View.VISIBLE else View.GONE
+            }
+        })
+
+        jarvis.addView(heading("JARVIS"))
+        jarvis.addView(Button(this).apply {
+            text = "Zum lokalen Chat"
+            styleButton(this, true)
+            setOnClickListener { selectPage(1) }
+        })
+        jarvis.addView(Button(this).apply {
+            text = "Letzte Antwort vorlesen"
+            styleButton(this)
+            setOnClickListener {
+                when {
+                    lastReply.isBlank() -> toast("Sende zuerst eine Nachricht im Chat.")
+                    !speechReady -> toast("Die Android-Sprachausgabe ist nicht verfügbar.")
+                    else -> speech?.speak(lastReply, TextToSpeech.QUEUE_FLUSH, null, "jarvis-reply")
+                }
+            }
+        })
+        speech = TextToSpeech(this) { state ->
+            if (state == TextToSpeech.SUCCESS) {
+                speechReady = speech?.setLanguage(java.util.Locale.GERMAN)?.let { it >= 0 } ?: false
+            }
+        }
         setContentView(root)
         if (modelFile.isFile) loadModel(null)
+    }
+
+    private fun toast(message: String) {
+        android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_SHORT).show()
+    }
+
+    private fun populateEntries(container: LinearLayout, title: String, key: String, hint: String) {
+        val entries = JSONArray(preferences.getString(key, "[]") ?: "[]")
+        container.addView(heading(title))
+        val input = EditText(this).apply { this.hint = hint }
+        container.addView(input)
+        val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        fun save() { preferences.edit().putString(key, entries.toString()).apply() }
+        fun render() {
+            list.removeAllViews()
+            for (index in 0 until entries.length()) {
+                val value = entries.getString(index)
+                list.addView(TextView(this).apply {
+                    text = value
+                    setPadding(0, dp(12), 0, 0)
+                })
+                list.addView(Button(this).apply {
+                    text = "Entfernen"
+                    contentDescription = "$value entfernen"
+                    styleButton(this)
+                    setOnClickListener {
+                        android.app.AlertDialog.Builder(this@MainActivity)
+                            .setMessage("Eintrag entfernen?")
+                            .setPositiveButton("Entfernen") { _, _ -> entries.remove(index); save(); render() }
+                            .setNegativeButton("Abbrechen", null)
+                            .show()
+                    }
+                })
+            }
+        }
+        container.addView(Button(this).apply {
+            text = "Hinzufügen"
+            styleButton(this, true)
+            setOnClickListener {
+                val value = input.text.toString().trim()
+                if (value.isNotEmpty()) {
+                    entries.put(value)
+                    save()
+                    input.text.clear()
+                    render()
+                }
+            }
+        })
+        container.addView(ScrollView(this).apply { addView(list) }, LinearLayout.LayoutParams(-1, 0, 1f))
+        render()
     }
 
     @Deprecated("Uses the Android document picker")
@@ -298,6 +423,7 @@ class MainActivity : Activity() {
         val message = prompt.text.toString().trim()
         if (message.isEmpty()) return
         prompt.text.clear()
+        lastReply = ""
         send.isEnabled = false
         choose.isEnabled = false
         transcript.append("\n\nDu\n$message\n\nUNFEAL\n")
@@ -307,6 +433,7 @@ class MainActivity : Activity() {
                     checkNotNull(conversation).sendMessageAsync(message).collect { chunk ->
                         runOnUiThread {
                             if (!isDestroyed) {
+                                lastReply += chunk.toString()
                                 transcript.append(chunk.toString())
                                 scroll.post { scroll.fullScroll(View.FOCUS_DOWN) }
                             }
@@ -334,6 +461,7 @@ class MainActivity : Activity() {
         worker.execute { closeModel() }
         worker.shutdown()
         updateWorker.shutdownNow()
+        speech?.shutdown()
         super.onDestroy()
     }
 }
