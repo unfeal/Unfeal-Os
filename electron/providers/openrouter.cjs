@@ -5,32 +5,46 @@ function headers(apiKey) {
   return { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" };
 }
 
-async function listModels(apiKey) {
-  const response = await fetch(`${API_URL}/models`, { headers: headers(apiKey), signal: AbortSignal.timeout(30000) });
-  if (!response.ok) throw new Error(`OpenRouter model list failed (${response.status}).`);
+async function catalog(apiKey, signal) {
+  const timeout = AbortSignal.timeout(30000);
+  const response = await fetch(`${API_URL}/models`, { headers: headers(apiKey), signal: signal ? AbortSignal.any([signal, timeout]) : timeout });
+  if (!response.ok) throw new Error(`OpenRouter Modellkatalog fehlgeschlagen (${response.status}).`);
   const { data } = await response.json();
-  return Array.isArray(data)
-    ? data.filter((model) => typeof model?.id === "string" &&
-        model.architecture?.input_modalities?.includes("text") &&
-        model.architecture?.output_modalities?.includes("text"))
-      .map(({ id, name }) => ({ id, name: name ? `${name} (${id})` : id }))
-      .sort((left, right) => left.name.localeCompare(right.name))
-    : [];
+  return Array.isArray(data) ? data.filter((model) => typeof model?.id === "string" &&
+    model.architecture?.input_modalities?.includes("text") && model.architecture?.output_modalities?.includes("text")) : [];
 }
 
-async function requestChat(model, messages, apiKey, signal, stream) {
+async function listModels(apiKey) {
+  return (await catalog(apiKey)).map(({ id, name }) => ({ id, name: name ? `${name} (${id})` : id }))
+    .sort((left, right) => left.name.localeCompare(right.name));
+}
+
+async function listPricedModels(apiKey, signal) {
+  const rate = (value) => typeof value === "string" && value.trim() ? Number(value) * 1e6 : NaN;
+  return (await catalog(apiKey, signal)).filter((model) =>
+    !model.id.startsWith("openrouter/") && !model.id.endsWith(":free") &&
+    model.supported_parameters?.includes("max_tokens") &&
+    (model.pricing?.request === undefined || Number(model.pricing.request) === 0))
+    .map((model) => ({ id: model.id, input: rate(model.pricing?.prompt),
+      output: rate(model.pricing?.completion), context: model.context_length }))
+    .filter((model) => Number.isFinite(model.output) && model.output >= 0 && Number.isFinite(model.input) && model.input >= 0);
+}
+
+async function requestChat(model, messages, apiKey, signal, stream, options = {}) {
   const response = await fetch(`${API_URL}/chat/completions`, {
     method: "POST",
     headers: headers(apiKey),
-    body: JSON.stringify({ model, messages, max_tokens: 4096, stream }),
+    body: JSON.stringify({ model, messages, max_tokens: options.maxTokens ?? 4096, stream,
+      ...(options.ceiling !== undefined ? { provider: { max_price: { completion: options.ceiling } } } : {})
+    }),
     signal
   });
   if (!response.ok) throw new Error(`OpenRouter request failed (${response.status}). Check your API key, model access and credits.`);
   return response;
 }
 
-async function chat(model, messages, apiKey, signal) {
-  const response = await requestChat(model, messages, apiKey, signal, false);
+async function chat(model, messages, apiKey, signal, options) {
+  const response = await requestChat(model, messages, apiKey, signal, false, options);
   const result = await response.json();
   const choice = result.choices?.[0];
   if (result.error || choice?.finish_reason === "error") {
@@ -78,4 +92,4 @@ async function chatStream(model, messages, onChunk, signal, apiKey) {
   }
 }
 
-module.exports = { name: "OpenRouter", type: "cloud", listModels, chat, chatStream };
+module.exports = { name: "OpenRouter", type: "cloud", listModels, listPricedModels, chat, chatStream };

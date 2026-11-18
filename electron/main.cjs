@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const providerManager = require("./services/provider-manager.cjs");
+const { runAutoTeam } = require("./services/auto-team.cjs");
 const { runMultiAgent } = require("./services/multi-agent.cjs");
 const { createKnowledgeStore } = require("./services/knowledge-store.cjs");
 const { createSecretStore } = require("./services/secret-store.cjs");
@@ -410,25 +411,40 @@ ipcMain.on("providers:chat:stream:start", (event, payload) => {
             content: item.content.slice(0, 1000)
           }))
           : [];
-        const result = await runMultiAgent({
-          providerId: request.provider,
-          model: request.model,
-          messages: request.messages,
-          agentIds: request.agentIds,
-          agentProviders: request.agentProviders,
-          agentModels: request.agentModels,
-          knowledgeContext,
-          agentRounds: request.agentRounds,
-          maxCalls: request.maxCalls,
-          signal: controller.signal,
-          onProgress: (status) => {
-            if (!controller.signal.aborted && !event.sender.isDestroyed()) {
-              event.sender.send("providers:chat:stream:chunk", { requestId, progress: status });
-            }
-          },
-          getProvider: (providerId) => providerManager.getProvider(providerId),
-          getApiKey: (providerId) => providerId === request.provider ? Promise.resolve(apiKey) : secretStore.getSecret(providerId)
-        });
+        const progress = (status) => {
+          if (!controller.signal.aborted && !event.sender.isDestroyed()) {
+            event.sender.send("providers:chat:stream:chunk", { requestId, progress: status });
+          }
+        };
+        let result;
+        if (request.autoTeam) {
+          if (request.provider !== "openrouter") throw new Error("Agentenlauf: Automatische Teams benötigen OpenRouter.");
+          try {
+            result = await runAutoTeam({
+              settings: request.autoTeam, provider: providerManager.getProvider("openrouter"),
+              apiKey, messages: request.messages, knowledgeContext, signal: controller.signal, onProgress: progress
+            });
+          } catch (error) {
+            if (error?.message?.startsWith("OpenRouter ")) throw new Error("Agentenlauf: " + error.message);
+            throw error;
+          }
+        } else {
+          result = await runMultiAgent({
+            providerId: request.provider,
+            model: request.model,
+            messages: request.messages,
+            agentIds: request.agentIds,
+            agentProviders: request.agentProviders,
+            agentModels: request.agentModels,
+            knowledgeContext,
+            agentRounds: request.agentRounds,
+            maxCalls: request.maxCalls,
+            signal: controller.signal,
+            onProgress: progress,
+            getProvider: (providerId) => providerManager.getProvider(providerId),
+            getApiKey: (providerId) => providerId === request.provider ? Promise.resolve(apiKey) : secretStore.getSecret(providerId)
+          });
+        }
         if (!controller.signal.aborted && !event.sender.isDestroyed()) {
           event.sender.send("providers:chat:stream:chunk", { requestId, delta: result.message.content });
         }

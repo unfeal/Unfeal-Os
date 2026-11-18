@@ -463,3 +463,7 @@ h1 span { color: #b58aff; }
 .account-card input { background: #100e17; color: #eeeaf8; }
 .account-card button { background: #bb8ff3; color: #1c0d2b; font-weight: 700; }
 .account-card p { color: #d3c7df; }
+.auto-team-settings { margin-top: 10px; display: flex; align-items: center; flex-wrap: wrap; gap: 10px 16px; }
+.auto-team-settings label { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.auto-team-settings input[type="number"] { width: 90px; }
+.auto-team-settings p { flex-basis: 100%; margin: 4px 0; }

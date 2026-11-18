@@ -1,6 +1,6 @@
 {
   "name": "unfeal-os",
-  "version": "1.0.26",
+  "version": "1.0.27",
   "description": "UNFEAL OS - Local AI Desktop Environment",
   "main": "electron/main.cjs",
   "type": "commonjs",

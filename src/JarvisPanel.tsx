@@ -9,10 +9,11 @@ type Recognition = {
   abort(): void;
 };
 
-export default function JarvisPanel({ busy, progress, reply, onDictation, rounds, agentCount, multiAgent, onRoundsChange }: {
+export default function JarvisPanel({ busy, progress, reply, onDictation, rounds, agentCount, multiAgent, onRoundsChange, planningCalls }: {
   busy: boolean;
   rounds: number;
   agentCount: number;
+  planningCalls: number;
   multiAgent: boolean;
   onRoundsChange: (rounds: number) => void;
   progress: string[];
@@ -119,7 +120,7 @@ export default function JarvisPanel({ busy, progress, reply, onDictation, rounds
           <label>Agentenrunden <select value={multiAgent ? rounds : ""} disabled={busy} onChange={(event) => onRoundsChange(Number(event.target.value))}>
             <option value="" disabled>Runden wählen</option>
             {[1, 2, 3].map((count) => <option key={count} value={count}>
-              {count} {count === 1 ? "Runde" : "Runden"} · bis zu {agentCount * count + 1} Modellaufrufe
+              {count} {count === 1 ? "Runde" : "Runden"} · bis zu {agentCount * count + 1 + planningCalls} Modellaufrufe
             </option>)}
           </select></label>
           {progress.length > 0 ? <ol>{progress.slice(-6).map((item, index) => <li key={index}>{item}</li>)}</ol> : <p>Aktiviere Multi-Agent und sende einen Auftrag, um den Fortschritt hier zu sehen.</p>}

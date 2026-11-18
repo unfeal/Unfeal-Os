@@ -21,6 +21,17 @@ type OllamaModel = {
 };
 type ChatProvider = "ollama" | "anthropic" | "openai" | "gemini" | "openrouter";
 type AgentRoleId = "researcher" | "developer" | "security" | "critic";
+type AutoTeamSettings = { count: number; rounds: number; ceiling: number; sort: "output" | "input" };
+const defaultAutoTeam: AutoTeamSettings = { count: 4, rounds: 1, ceiling: 1, sort: "output" };
+
+function savedAutoTeam(model: string): AutoTeamSettings | null {
+  const match = /^auto-team:(\d+):(\d+):([\d.]+):(output|input)$/.exec(model);
+  if (!match) return null;
+  const count = Number(match[1]), rounds = Number(match[2]), ceiling = Number(match[3]);
+  if (count < 2 || count > 50 || rounds < 1 || rounds > 3 || !Number.isFinite(ceiling) || ceiling > 1000) return null;
+  return { count, rounds, ceiling, sort: match[4] === "input" ? "input" : "output" };
+}
+
 type AgentModelSelections = Partial<Record<AgentRoleId, string>>;
 type AgentProviderSelections = Partial<Record<AgentRoleId, ChatProvider>>;
 type RemoteChatProvider = Exclude<ChatProvider, "ollama">;
@@ -406,7 +417,7 @@ declare global {
           save: (providerId: RemoteChatProvider, apiKey: string) => Promise<boolean>;
           remove: (providerId: RemoteChatProvider) => Promise<boolean>;
         };
-        streamChat: (request: { provider: ChatProvider; model: string; messages: ChatMessage[]; workspaceFiles?: Array<{ name: string; content: string }>; multiAgent?: boolean; agentIds?: AgentRoleId[]; agentProviders?: AgentProviderSelections; agentModels?: AgentModelSelections; includeKnowledge?: boolean; agentRounds?: number; maxCalls?: number }, onChunk: (delta: string) => void, onProgress?: (status: string) => void) => Promise<{ cancelled?: boolean }>;
+        streamChat: (request: { provider: ChatProvider; model: string; messages: ChatMessage[]; workspaceFiles?: Array<{ name: string; content: string }>; multiAgent?: boolean; autoTeam?: AutoTeamSettings; agentIds?: AgentRoleId[]; agentProviders?: AgentProviderSelections; agentModels?: AgentModelSelections; includeKnowledge?: boolean; agentRounds?: number; maxCalls?: number }, onChunk: (delta: string) => void, onProgress?: (status: string) => void) => Promise<{ cancelled?: boolean }>;
         cancelChat: () => void;
       };
       chats: {
@@ -480,6 +491,8 @@ export default function App({ onLogout }: { onLogout: () => Promise<void> }) {
   const [chatProvider, setChatProvider] = useState<ChatProvider>("ollama");
   const [jarvisMode, setJarvisMode] = useState(false);
   const [multiAgentMode, setMultiAgentMode] = useState(false);
+  const [autoTeam, setAutoTeam] = useState<AutoTeamSettings | null>(null);
+  const autoTeamActive = multiAgentMode ? autoTeam : null;
   const [agentRoleIds, setAgentRoleIds] = useState<AgentRoleId[]>(["researcher", "developer", "security"]);
   const [agentProviderSelections, setAgentProviderSelections] = useState<AgentProviderSelections>({});
   const [agentModelSelections, setAgentModelSelections] = useState<AgentModelSelections>({});
@@ -1183,7 +1196,9 @@ export default function App({ onLogout }: { onLogout: () => Promise<void> }) {
       if (id !== chatId) clearWorkspace();
       setChatId(chat.id);
       const savedModel = parseChatModel(chat.model);
-      setMultiAgentMode(savedModel.multiAgent);
+      const savedTeam = savedAutoTeam(chat.model);
+      setAutoTeam(savedTeam);
+      setMultiAgentMode(Boolean(savedTeam) || savedModel.multiAgent);
       setAgentRoleIds(savedModel.agentRoleIds);
       setAgentProviderSelections(savedModel.agentProviderSelections);
       setAgentModelSelections(savedModel.agentModelSelections);
@@ -1251,11 +1266,15 @@ export default function App({ onLogout }: { onLogout: () => Promise<void> }) {
     event.preventDefault();
     const content = message.trim();
     if (!content || chatLoading) return;
-    if (!chatModel) {
+    if (autoTeamActive && (autoTeamActive.ceiling < 0 || autoTeamActive.ceiling > 1000)) {
+      setChatError("Gib ein Output-Preislimit zwischen 0 und 1.000 Dollar ein.");
+      return;
+    }
+    if (!chatModel && !autoTeamActive) {
       setChatError(chatProvider === "ollama" ? "Wähle zuerst ein verfügbares Ollama-Modell aus." : `Wähle zuerst ein verfügbares ${chatProviderNames[chatProvider]}-Modell aus.`);
       return;
     }
-    const missingAgentModel = multiAgentMode && agentRoleIds.find((id) => {
+    const missingAgentModel = multiAgentMode && !autoTeamActive && agentRoleIds.find((id) => {
       const provider = agentProviderFor(id);
       const selectedModel = agentModelFor(id);
       return !selectedModel || !modelsForProvider(provider).some((model) => model.id === selectedModel);
@@ -1267,7 +1286,7 @@ export default function App({ onLogout }: { onLogout: () => Promise<void> }) {
     const userMessage: ChatMessage = { role: "user", content };
     const outgoingAgentProviders: AgentProviderSelections = {};
     const outgoingAgentModels: AgentModelSelections = {};
-    if (multiAgentMode) {
+    if (multiAgentMode && !autoTeamActive) {
       for (const id of agentRoleIds) {
         outgoingAgentProviders[id] = agentProviderFor(id);
         outgoingAgentModels[id] = agentModelFor(id);
@@ -1292,12 +1311,12 @@ export default function App({ onLogout }: { onLogout: () => Promise<void> }) {
       setChatMessages((current) => [...current, { role: "assistant", content: "" }]);
       try {
         const streamResult = await window.unfeal.providers.streamChat({
-          provider: chatProvider,
-          model: chatModel,
+          provider: autoTeamActive ? "openrouter" : chatProvider,
+          model: autoTeamActive ? "auto-team" : chatModel,
           messages: history,
           includeKnowledge,
           ...(!multiAgentMode && workspaceFiles.length ? { workspaceFiles } : {}),
-          ...(multiAgentMode ? { multiAgent: true, agentIds: agentRoleIds, agentProviders: outgoingAgentProviders, agentModels: outgoingAgentModels, includeKnowledge, agentRounds, maxCalls: maxAgentCalls } : {})
+          ...(autoTeamActive ? { multiAgent: true, autoTeam: autoTeamActive } : multiAgentMode ? { multiAgent: true, agentIds: agentRoleIds, agentProviders: outgoingAgentProviders, agentModels: outgoingAgentModels, includeKnowledge, agentRounds, maxCalls: maxAgentCalls } : {})
         }, updateAssistant, (status) => setChatProgress((current) => [...current.slice(-4), status]));
         if (streamResult.cancelled && !reply.trim()) {
           setChatMessages((current) => current.slice(0, -2));
@@ -1320,7 +1339,9 @@ export default function App({ onLogout }: { onLogout: () => Promise<void> }) {
       try {
         const saved = await window.unfeal.chats.saveTurn({
           ...(chatId ? { id: chatId } : {}),
-          model: multiAgentMode
+          model: autoTeamActive
+            ? `auto-team:${autoTeamActive.count}:${autoTeamActive.rounds}:${autoTeamActive.ceiling.toFixed(4)}:${autoTeamActive.sort}`
+            : multiAgentMode
             ? `multi-config:${encodeURIComponent(JSON.stringify({ agentRoleIds, agentProviderSelections: outgoingAgentProviders, agentModelSelections: outgoingAgentModels, includeKnowledge, agentRounds, maxAgentCalls, provider: chatProvider, model: chatModel }))}`
             : `${chatProvider}:${chatModel}`,
           messages: [userMessage, assistantMessage]
@@ -1452,7 +1473,12 @@ export default function App({ onLogout }: { onLogout: () => Promise<void> }) {
                 </select>
                 <button type="button" onClick={loadModels} disabled={loadingModels}>{loadingModels ? "Lade …" : "↻"}</button>
                 <label className="agent-mode-toggle"><input type="checkbox" checked={multiAgentMode} onChange={(event) => setMultiAgentMode(event.target.checked)} disabled={chatLoading} /> Multi-Agent</label>
-                {multiAgentMode && <><fieldset className="agent-role-picker" disabled={chatLoading}><legend>AGENTEN</legend>{agentRoles.map((agent) => {
+                {multiAgentMode && <label className="agent-mode-toggle">
+                  <input type="checkbox" checked={Boolean(autoTeam)} disabled={chatLoading}
+                    onChange={(event) => setAutoTeam(event.target.checked ? defaultAutoTeam : null)} />
+                  JARVIS-Team automatisch
+                </label>}
+                {multiAgentMode && !autoTeamActive && <><fieldset className="agent-role-picker" disabled={chatLoading}><legend>AGENTEN</legend>{agentRoles.map((agent) => {
                   const selected = agentRoleIds.includes(agent.id);
                   const selectedProvider = agentProviderFor(agent.id);
                   const selectedModel = agentModelFor(agent.id);
@@ -1487,6 +1513,23 @@ export default function App({ onLogout }: { onLogout: () => Promise<void> }) {
                 })}</fieldset><label htmlFor="knowledge-context-toggle" className="agent-mode-toggle"><input id="knowledge-context-toggle" type="checkbox" checked={includeKnowledge} onChange={(event) => setIncludeKnowledge(event.target.checked)} disabled={chatLoading} />Knowledge-Kontext</label>{includeKnowledge && <small className="knowledge-sharing-note">{[...new Set([chatProvider, ...agentRoleIds.map(agentProviderFor)])].some((provider) => provider !== "ollama") ? `Relevante Auszüge gehen an ${[...new Set([chatProvider, ...agentRoleIds.map(agentProviderFor)])].filter((provider) => provider !== "ollama").map((provider) => chatProviderNames[provider]).join(", ")} API.` : "Relevante Auszüge bleiben lokal bei Ollama."}</small>}<label htmlFor="agent-rounds">RUNDEN</label><select id="agent-rounds" value={agentRounds} onChange={(event) => setAgentRounds(Number(event.target.value))} disabled={chatLoading}><option value={1}>1 Runde</option><option value={2} disabled={agentCount * 2 + 1 > maxAgentCalls}>2 Runden</option><option value={3} disabled={agentCount * 3 + 1 > maxAgentCalls}>3 Runden</option></select><label htmlFor="agent-call-limit">LIMIT</label><select id="agent-call-limit" value={maxAgentCalls} onChange={(event) => updateMaxAgentCalls(Number(event.target.value))} disabled={chatLoading}>{Array.from({ length: 11 }, (_, index) => index + 3).map((value) => <option key={value} value={value}>{value} Aufrufe</option>)}</select><small className="agent-call-count">{agentCount * agentRounds + 1}/{maxAgentCalls}</small></>}
               </div>
             </div>
+            {autoTeamActive && <fieldset className="agent-role-picker auto-team-settings" disabled={chatLoading}>
+              <legend>JARVIS-Team · OpenRouter</legend>
+              <label>Agenten <select value={autoTeamActive.count} onChange={(event) => setAutoTeam({ ...autoTeamActive, count: Number(event.target.value) })}>
+                {Array.from({ length: 49 }, (_, index) => index + 2).map((count) => <option key={count}>{count}</option>)}
+              </select></label>
+              <label>Runden <select value={autoTeamActive.rounds} onChange={(event) => setAutoTeam({ ...autoTeamActive, rounds: Number(event.target.value) })}>
+                {[1, 2, 3].map((rounds) => <option key={rounds}>{rounds}</option>)}
+              </select></label>
+              <label>Max. $ pro Mio. Output-Token <input type="number" min="0" max="1000" step="0.0001" value={autoTeamActive.ceiling}
+                onChange={(event) => setAutoTeam({ ...autoTeamActive, ceiling: Number(event.target.value) })} /></label>
+              <label>Modell sortieren nach <select value={autoTeamActive.sort}
+                onChange={(event) => setAutoTeam({ ...autoTeamActive, sort: event.target.value === "input" ? "input" : "output" })}>
+                <option value="output">Günstigste Ausgabe</option><option value="input">Günstigste Eingabe</option>
+              </select></label>
+              <label><input type="checkbox" checked={includeKnowledge} onChange={(event) => setIncludeKnowledge(event.target.checked)} /> Knowledge-Kontext</label>
+              <p>Bis zu {autoTeamActive.count * autoTeamActive.rounds + 2} OpenRouter-Aufrufe inklusive Teamplanung und Zusammenfassung. Eingabe-Token werden separat berechnet.</p>
+            </fieldset>}
             {modelsError && <p className="chat-error" role="alert">{modelsError}</p>}
             {!multiAgentMode && <div className="knowledge-actions">
               <label className="agent-mode-toggle">
@@ -1543,15 +1586,17 @@ export default function App({ onLogout }: { onLogout: () => Promise<void> }) {
               {!chatLoading && !jarvisMode && multiAgentMode && chatProgress.length > 0 && <ul className="chat-progress-lines" aria-label="Agentenfortschritt">
                 {chatProgress.map((status, index) => <li key={index}>{status}</li>)}
               </ul>}
-              {chatLoading && <div className="chat-thinking" role="status">{multiAgentMode ? <><span>{`${agentRoleIds.map((id) => agentRoles.find((agent) => agent.id === id)?.label).filter(Boolean).join(", ")} prüfen die Aufgabe in ${agentRounds} Runde${agentRounds === 1 ? "" : "n"}; der Manager fasst zusammen …`}</span>{chatProgress.length > 0 && <small className="chat-progress-lines">{chatProgress.slice(-4).map((status, index) => <span key={`${index}-${status}`}>{status}</span>)}</small>}</> : `${chatModel} antwortet …`}</div>}
+              {chatLoading && <div className="chat-thinking" role="status">{multiAgentMode ? <><span>{autoTeamActive ? `JARVIS · bis zu ${autoTeamActive.count} Agenten in ${autoTeamActive.rounds} Runde(n)` : `${agentRoleIds.map((id) => agentRoles.find((agent) => agent.id === id)?.label).filter(Boolean).join(", ")} prüfen die Aufgabe in ${agentRounds} Runde${agentRounds === 1 ? "" : "n"}; der Manager fasst zusammen …`}</span>{chatProgress.length > 0 && <small className="chat-progress-lines">{chatProgress.slice(-4).map((status, index) => <span key={`${index}-${status}`}>{status}</span>)}</small>}</> : `${chatModel} antwortet …`}</div>}
             </div>
             {jarvisMode && <JarvisPanel
               busy={chatLoading}
               progress={chatProgress}
-              rounds={agentRounds}
-              agentCount={agentCount}
+              rounds={autoTeamActive?.rounds ?? agentRounds}
+              agentCount={autoTeamActive?.count ?? agentCount}
+              planningCalls={autoTeamActive ? 1 : 0}
               multiAgent={multiAgentMode}
               onRoundsChange={(rounds) => {
+                if (autoTeamActive) { setAutoTeam({ ...autoTeamActive, rounds }); return; }
                 setAgentRounds(rounds);
                 setMaxAgentCalls((current) => Math.max(current, agentCount * rounds + 1));
                 setMultiAgentMode(true);
@@ -1568,9 +1613,9 @@ export default function App({ onLogout }: { onLogout: () => Promise<void> }) {
                 maxLength={20000}
                 disabled={chatLoading}
               />
-              {chatLoading ? <button type="button" className="chat-stop" onClick={() => window.unfeal.providers.cancelChat()} aria-label="Antwort stoppen" title="Antwort stoppen">■</button> : <button type="submit" disabled={!message.trim() || !chatModel} aria-label="Nachricht senden">↑</button>}
+              {chatLoading ? <button type="button" className="chat-stop" onClick={() => window.unfeal.providers.cancelChat()} aria-label="Antwort stoppen" title="Antwort stoppen">■</button> : <button type="submit" disabled={!message.trim() || (!chatModel && !autoTeamActive)} aria-label="Nachricht senden">↑</button>}
             </form>
-            <small className="chat-privacy-note">{multiAgentMode ? `MULTI-AGENT · ${agentCount} × ${agentRounds} + MANAGER = ${agentCount * agentRounds + 1}/${maxAgentCalls} MODELLAUFRUFE · ${[...new Set([chatProvider, ...agentRoleIds.map(agentProviderFor)])].map((provider) => provider === "ollama" ? "OLLAMA LOKAL" : `${chatProviderNames[provider].toUpperCase()} API`).join(" + ")} · ${includeKnowledge ? "KNOWLEDGE-AUSZÜGE WERDEN MITGESENDET" : "KNOWLEDGE AUS"} · CHAT LOKAL GESPEICHERT` : chatProvider === "ollama" ? "LOKAL ÜBER OLLAMA · CHATS BLEIBEN LOKAL GESPEICHERT" : `${chatProviderNames[chatProvider].toUpperCase()} API · CHATS BLEIBEN LOKAL GESPEICHERT`}</small>
+            <small className="chat-privacy-note">{autoTeamActive ? `OPENROUTER API · ${includeKnowledge ? "KNOWLEDGE-AUSZÜGE WERDEN MITGESENDET" : "KNOWLEDGE AUS"} · CHAT LOKAL GESPEICHERT` : multiAgentMode ? `MULTI-AGENT · ${agentCount} × ${agentRounds} + MANAGER = ${agentCount * agentRounds + 1}/${maxAgentCalls} MODELLAUFRUFE · ${[...new Set([chatProvider, ...agentRoleIds.map(agentProviderFor)])].map((provider) => provider === "ollama" ? "OLLAMA LOKAL" : `${chatProviderNames[provider].toUpperCase()} API`).join(" + ")} · ${includeKnowledge ? "KNOWLEDGE-AUSZÜGE WERDEN MITGESENDET" : "KNOWLEDGE AUS"} · CHAT LOKAL GESPEICHERT` : chatProvider === "ollama" ? "LOKAL ÜBER OLLAMA · CHATS BLEIBEN LOKAL GESPEICHERT" : `${chatProviderNames[chatProvider].toUpperCase()} API · CHATS BLEIBEN LOKAL GESPEICHERT`}</small>
           </div>
         );
 
@@ -2053,7 +2098,7 @@ export default function App({ onLogout }: { onLogout: () => Promise<void> }) {
             {matchingChats.slice(0, chatSearch.trim() ? 40 : 8).map((chat) => (
               <div key={chat.id} className="sidebar-chat-row">
                 <button className={`sidebar-chat ${chatId === chat.id ? "active" : ""}`} onClick={() => openChat(chat.id)} disabled={chatLoading} title={chat.title}>
-                  <span>{chat.title}</span><small>{chat.model.replace(/^multi-config:.*$/, "Multi-Agent").replace(/^multi(?::|-[^:]+:)/, "Multi-Agent · ").replace(/^anthropic:/, "Claude · ").replace(/^openai:/, "OpenAI · ").replace(/^gemini:/, "Gemini · ").replace(/^openrouter:/, "OpenRouter · ").replace(/^ollama:/, "")}</small>
+                  <span>{chat.title}</span><small>{chat.model.replace(/^auto-team:.*$/, "JARVIS-Team · OpenRouter").replace(/^multi-config:.*$/, "Multi-Agent").replace(/^multi(?::|-[^:]+:)/, "Multi-Agent · ").replace(/^anthropic:/, "Claude · ").replace(/^openai:/, "OpenAI · ").replace(/^gemini:/, "Gemini · ").replace(/^openrouter:/, "OpenRouter · ").replace(/^ollama:/, "")}</small>
                 </button>
                 <div className="sidebar-chat-actions">
                   <button className="sidebar-chat-rename" onClick={() => renameChat(chat.id)} disabled={chatLoading} title="Chat umbenennen" aria-label={`Chat ${chat.title} umbenennen`}>✎</button>
