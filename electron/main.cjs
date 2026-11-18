@@ -462,7 +462,12 @@ ipcMain.on("providers:chat:stream:cancel", (event, requestId) => {
   if (!mainWindow || event.sender !== mainWindow.webContents || typeof requestId !== "string") return;
   activeChatStreams.get(`${event.sender.id}:${requestId}`)?.abort();
 });
+const windowsAppId = "UNFEAL.OS";
+if (process.platform === "win32") app.setAppUserModelId(windowsAppId);
+
 function createWindow() {
+  const iconPath = path.join(__dirname, "..", "dist",
+    process.platform === "win32" ? "unfeal-icon.ico" : "unfeal-icon.jpg");
   mainWindow = new BrowserWindow({
     width: 1500,
     height: 950,
@@ -470,7 +475,7 @@ function createWindow() {
     minHeight: 650,
     backgroundColor: "#090810",
     title: "UNFEAL OS",
-    icon: path.join(__dirname, "..", "dist", "unfeal-icon.jpg"),
+    icon: iconPath,
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
@@ -478,6 +483,10 @@ function createWindow() {
       sandbox: true
     }
   });
+
+  if (process.platform === "win32") {
+    mainWindow.setAppDetails({ appId: windowsAppId, appIconPath: iconPath, appIconIndex: 0, relaunchDisplayName: "UNFEAL OS" });
+  }
 
   const devServerUrl = process.env.VITE_DEV_SERVER_URL;
   const loading = devServerUrl
