@@ -444,9 +444,9 @@ h1 span { color: #b58aff; }
   place-items: center;
   flex: none;
   padding: 2px;
-  border: 1px solid #805479;
+  border: 0;
   border-radius: 50%;
-  background: #090810;
+  background: transparent;
   cursor: pointer;
 }
 .brand > div { min-width: 0; white-space: nowrap; font-size: clamp(14px, 1.5vw, 19px); letter-spacing: .08em; }

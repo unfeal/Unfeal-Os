@@ -298,6 +298,16 @@ registerKnowledgeHandler("jarvis:open-tool", async (tool) => {
     ["editor", ["System32", "notepad.exe"]],
     ["calculator", ["System32", "calc.exe"]]
   ]);
+  if (tool === "computer") {
+    const { spawn } = require("node:child_process");
+    const explorer = path.join(process.env.SystemRoot || "C:\\Windows", "explorer.exe");
+    await new Promise((resolve, reject) => {
+      const child = spawn(explorer, ["shell:MyComputerFolder"], { stdio: "ignore" });
+      child.once("spawn", () => { child.unref(); resolve(); });
+      child.once("error", reject);
+    });
+    return;
+  }
   if (tool === "choose") {
     const selection = await dialog.showOpenDialog(mainWindow, {
       title: "Windows-Programm auswählen",
