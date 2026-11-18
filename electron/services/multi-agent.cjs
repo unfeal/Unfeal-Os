@@ -81,8 +81,9 @@ async function runMultiAgent({ providerId, model, messages, getProvider, getApiK
         ...context,
         ...reviewContext
       ], agentApiKey, signal);
+      const content = responseText(response);
       reportProgress(`Runde ${round + 1}/${agentRounds}: ${agent.name} fertig`);
-      return { name: agent.name, provider: agentProvider.name, model: agentModel, content: responseText(response) };
+      return { name: agent.name, provider: agentProvider.name, model: agentModel, content };
     } catch (error) {
       if (!signal?.aborted) reportProgress(`Runde ${round + 1}/${agentRounds}: ${agent.name} fehlgeschlagen${agentProviderId === "openrouter" && error instanceof Error && error.message.startsWith("OpenRouter ") ? " – " + error.message : ""}`);
       throw error;
@@ -95,7 +96,12 @@ async function runMultiAgent({ providerId, model, messages, getProvider, getApiK
     if (signal?.aborted) throw new Error("Agent run cancelled.");
     const succeeded = results.filter((result) => result.status === "fulfilled").length;
     if (succeeded === 0) {
-      if (round === 0) throw new Error("The agent team could not complete this request.");
+      if (round === 0) {
+        const reasons = [...new Set(results.map(({ reason }) =>
+          reason instanceof Error && reason.message.startsWith("OpenRouter ") ? reason.message : "Kein verwertbarer Antworttext vom Agenten."
+        ))];
+        throw new Error("Agentenlauf: " + reasons.join(" "));
+      }
       break;
     }
     findings = results.map((result, index) => {
@@ -106,19 +112,29 @@ async function runMultiAgent({ providerId, model, messages, getProvider, getApiK
   }
 
   reportProgress("Manager: Ergebnisse werden zusammengeführt");
-  const synthesis = await provider.chat(model, [
-    {
-      role: "system",
-      content: `You are the UNFEAL OS Manager. Synthesize the specialist reports into one clear answer for the user. Resolve disagreements, preserve useful caveats, and do not claim facts the agents could not verify. Do not mention internal chain-of-thought.${knowledgeReference}`
-    },
-    ...context,
-    {
-      role: "user",
-      content: `Specialist reports:\n\n${findings.map(({ name, provider: sourceProvider, model: sourceModel, content }) => `### ${name} (${sourceProvider || provider.name} · ${sourceModel || model})\n${content}`).join("\n\n")}\n\nWrite the final answer to the original user request.`
-    }
-  ], apiKey, signal);
+  let finalContent;
+  try {
+    const synthesis = await provider.chat(model, [
+      {
+        role: "system",
+        content: `You are the UNFEAL OS Manager. Synthesize the specialist reports into one clear answer for the user. Resolve disagreements, preserve useful caveats, and do not claim facts the agents could not verify. Do not mention internal chain-of-thought.${knowledgeReference}`
+      },
+      ...context,
+      {
+        role: "user",
+        content: `Specialist reports:\n\n${findings.map(({ name, provider: sourceProvider, model: sourceModel, content }) => `### ${name} (${sourceProvider || provider.name} · ${sourceModel || model})\n${content}`).join("\n\n")}\n\nWrite the final answer to the original user request.`
+      }
+    ], apiKey, signal);
 
-  const finalContent = responseText(synthesis);
+    finalContent = responseText(synthesis);
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    reportProgress("Manager: Zusammenfassung fehlgeschlagen. Agentenantworten werden angezeigt.");
+    const reports = findings.filter((finding) => finding.provider);
+    finalContent = "Die Zusammenfassung konnte nicht erstellt werden. Die Agenten haben Folgendes geliefert:\n\n" +
+      reports.map(({ name, content }) => `### ${name}\n${content}`).join("\n\n");
+    return { message: { role: "assistant", content: finalContent }, agents: reports.map(({ name }) => name) };
+  }
   reportProgress("Manager: Antwort fertig");
   return { message: { role: "assistant", content: finalContent }, agents: findings.map(({ name }) => name) };
 }

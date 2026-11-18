@@ -1306,7 +1306,7 @@ export default function App() {
         if (!reply.trim()) {
           setChatMessages((current) => current.slice(0, -2));
           setMessage(content);
-          setChatError(multiAgentMode ? "Das Agenten-Team konnte nicht antworten. Prüfe Modell, Schlüssel und API-Zugriff." : chatProvider === "ollama" ? "Ollama konnte nicht antworten. Prüfe, ob Ollama läuft und das Modell verfügbar ist." : `${chatProviderNames[chatProvider]} konnte nicht antworten. Prüfe API-Schlüssel, Modellzugriff und API-Guthaben.`);
+          setChatError(multiAgentMode ? (error instanceof Error && error.message.startsWith("Agentenlauf:") ? error.message : "Das Agenten-Team konnte keine Antwort liefern. Sieh im Agentenfortschritt nach.") : chatProvider === "ollama" ? "Ollama konnte nicht antworten. Prüfe, ob Ollama läuft und das Modell verfügbar ist." : `${chatProviderNames[chatProvider]} konnte nicht antworten. Prüfe API-Schlüssel, Modellzugriff und API-Guthaben.`);
           return;
         }
       }
@@ -1535,11 +1535,22 @@ export default function App() {
                   <ChatMessageContent text={chatMessage.content} />
                 </article>
               ))}
+              {!chatLoading && !jarvisMode && multiAgentMode && chatProgress.length > 0 && <ul className="chat-progress-lines" aria-label="Agentenfortschritt">
+                {chatProgress.map((status, index) => <li key={index}>{status}</li>)}
+              </ul>}
               {chatLoading && <div className="chat-thinking" role="status">{multiAgentMode ? <><span>{`${agentRoleIds.map((id) => agentRoles.find((agent) => agent.id === id)?.label).filter(Boolean).join(", ")} prüfen die Aufgabe in ${agentRounds} Runde${agentRounds === 1 ? "" : "n"}; der Manager fasst zusammen …`}</span>{chatProgress.length > 0 && <small className="chat-progress-lines">{chatProgress.slice(-4).map((status, index) => <span key={`${index}-${status}`}>{status}</span>)}</small>}</> : `${chatModel} antwortet …`}</div>}
             </div>
             {jarvisMode && <JarvisPanel
               busy={chatLoading}
               progress={chatProgress}
+              rounds={agentRounds}
+              agentCount={agentCount}
+              multiAgent={multiAgentMode}
+              onRoundsChange={(rounds) => {
+                setAgentRounds(rounds);
+                setMaxAgentCalls((current) => Math.max(current, agentCount * rounds + 1));
+                setMultiAgentMode(true);
+              }}
               reply={[...chatMessages].reverse().find((entry) => entry.role === "assistant")?.content ?? ""}
               onDictation={(text) => setMessage((current) => [current.trimEnd(), text].filter(Boolean).join(" ").slice(0, 20000))}
             />}
@@ -2048,7 +2059,7 @@ export default function App() {
           <span>UNFEAL / {activePage.toUpperCase()}</span>
           <span className="status">● LOCAL SYSTEM</span>
         </header>
-        <UpdateNotice />
+        {activePage === "Overview" && <UpdateNotice />}
         {renderPage()}
       </section>
 
