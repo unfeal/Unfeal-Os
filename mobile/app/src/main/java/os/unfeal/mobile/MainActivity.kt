@@ -18,6 +18,7 @@ import java.util.concurrent.Executors
 import kotlinx.coroutines.runBlocking
 
 class MainActivity : Activity() {
+    private val updateWorker = Executors.newSingleThreadExecutor()
     private val worker = Executors.newSingleThreadExecutor()
     private var engine: Engine? = null
     private var conversation: Conversation? = null
@@ -56,8 +57,60 @@ class MainActivity : Activity() {
             setOnClickListener { sendMessage() }
         }
         layout.addView(TextView(this).apply { text = "UNFEAL Mobile"; textSize = 30f })
+        val installed = packageManager.getPackageInfo(packageName, 0).versionName ?: "0.0.0"
+        val version = TextView(this).apply { text = "Installiert: $installed" }
+        val updates = Button(this).apply { text = "Nach Updates suchen" }
+        fun checkUpdates() {
+            updates.isEnabled = false
+            version.text = "Installiert: $installed · Suche läuft …"
+            updateWorker.execute {
+                val result = runCatching { MobileUpdates.check(installed) }
+                runOnUiThread {
+                    if (isDestroyed) return@runOnUiThread
+                    val release = result.getOrNull()
+                    version.text = when {
+                        result.isFailure -> "Installiert: $installed · Updatesuche fehlgeschlagen"
+                        release != null -> "Installiert: $installed · Verfügbar: ${release.version}"
+                        else -> "Installiert: $installed · Auf dem neuesten Stand"
+                    }
+                    updates.text = if (release != null) "Update öffnen" else "Nach Updates suchen"
+                    updates.setOnClickListener {
+                        if (release != null) {
+                            try { startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(release.url))) }
+                            catch (_: android.content.ActivityNotFoundException) { version.text = release.url }
+                        } else checkUpdates()
+                    }
+                    updates.isEnabled = true
+                }
+            }
+        }
+        updates.setOnClickListener { checkUpdates() }
+        layout.addView(version)
+        layout.addView(updates)
+        checkUpdates()
         layout.addView(status)
         layout.addView(choose)
+        layout.addView(Button(this).apply {
+            text = "Passendes Modell finden"
+            setOnClickListener {
+                val memory = android.app.ActivityManager.MemoryInfo()
+                getSystemService(android.app.ActivityManager::class.java).getMemoryInfo(memory)
+                val gib = memory.availMem / (1024.0 * 1024 * 1024)
+                val free = java.text.NumberFormat.getNumberInstance().apply { maximumFractionDigits = 1 }.format(gib)
+                val recommendation = if (gib >= 2.0) "Qwen3-0.6B als Einstieg. Der Speicherbedarf hängt vom Modell und vom Gesprächsverlauf ab."
+                    else "Momentan ist wenig RAM frei. Schließe andere Apps, bevor du Qwen3-0.6B ausprobierst."
+                android.app.AlertDialog.Builder(this@MainActivity)
+                    .setTitle("Lokaler Modellberater")
+                    .setMessage("$free GiB RAM frei. $recommendation")
+                    .setPositiveButton("Modell ansehen") { _, _ ->
+                        val url = android.net.Uri.parse("https://huggingface.co/litert-community/Qwen3-0.6B/blob/main/Qwen3-0.6B.litertlm")
+                        try { startActivity(Intent(Intent.ACTION_VIEW, url)) }
+                        catch (_: android.content.ActivityNotFoundException) { status.text = url.toString() }
+                    }
+                    .setNegativeButton("Schließen", null)
+                    .show()
+            }
+        })
         layout.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
         layout.addView(prompt)
         layout.addView(send)
@@ -156,6 +209,7 @@ class MainActivity : Activity() {
     override fun onDestroy() {
         worker.execute { closeModel() }
         worker.shutdown()
+        updateWorker.shutdownNow()
         super.onDestroy()
     }
 }

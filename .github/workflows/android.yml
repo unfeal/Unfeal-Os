@@ -25,3 +25,7 @@ jobs:
         with:
           name: unfeal-mobile-debug
           path: mobile/app/build/outputs/apk/debug/*.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-apksigner
+          path: /usr/local/lib/android/sdk/build-tools/*/lib/apksigner.jar
