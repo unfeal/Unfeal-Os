@@ -1992,7 +1992,13 @@ export default function App() {
     <main className={`app system-panel-${systemPanel}${activePage === "Overview" ? " app-overview" : ""}`}>
       <SakuraBackground />
       <aside className="sidebar">
-        <div className="brand">UNFEAL<span> OS</span></div>
+        <div className="brand">
+          <button type="button" className="brand-avatar" aria-label="App-Ansicht neu laden" title="App-Ansicht neu laden"
+            disabled={chatLoading} onClick={() => window.location.reload()}>
+            <img src={`${import.meta.env.BASE_URL}unfeal-icon.jpg`} alt="" width="38" height="38" />
+          </button>
+          <div>UNFEAL<span> OS</span></div>
+        </div>
 
         <button disabled={chatLoading} onClick={() => {
           setMessage("");

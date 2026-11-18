@@ -470,6 +470,7 @@ function createWindow() {
     minHeight: 650,
     backgroundColor: "#090810",
     title: "UNFEAL OS",
+    icon: path.join(__dirname, "..", "dist", "unfeal-icon.jpg"),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,

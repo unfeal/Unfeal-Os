@@ -437,3 +437,17 @@ h1 span { color: #b58aff; }
 .system-monitor-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 175px), 1fr)); gap: 12px; }
 .system-monitor-grid h2 { font-size: 1rem; }
 .system-monitor-grid meter { width: 100%; accent-color: #c794ef; }
+.brand { display: flex; align-items: center; gap: 9px; }
+.brand-avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  padding: 2px;
+  border: 1px solid #805479;
+  border-radius: 50%;
+  background: #090810;
+  cursor: pointer;
+}
+.brand-avatar img { display: block; border-radius: 50%; object-fit: cover; }
+.brand-avatar:focus-visible { outline: 2px solid #dfbcff; outline-offset: 3px; }
+.brand-avatar:disabled { opacity: .6; cursor: default; }
