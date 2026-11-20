@@ -291,6 +291,9 @@ registerKnowledgeHandler("projects:delete", (id) => {
 
 registerKnowledgeHandler("ollama:scan", () => require("./services/hardware.cjs").scanHardware(app));
 
+const { windowsApps, openWindowsApp } = require("./services/windows-apps.cjs");
+registerKnowledgeHandler("jarvis:list-apps", windowsApps);
+registerKnowledgeHandler("jarvis:open-app", openWindowsApp);
 registerKnowledgeHandler("jarvis:open-tool", async (tool) => {
   if (process.platform !== "win32") throw new Error("Nur unter Windows verfügbar.");
   const tools = new Map([

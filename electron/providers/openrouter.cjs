@@ -15,8 +15,10 @@ async function catalog(apiKey, signal) {
 }
 
 async function listModels(apiKey) {
-  return (await catalog(apiKey)).map(({ id, name }) => ({ id, name: name ? `${name} (${id})` : id }))
+  const models = (await catalog(apiKey)).map(({ id, name }) => ({ id, name: name ? `${name} (${id})` : id }))
     .sort((left, right) => left.name.localeCompare(right.name));
+  return [{ id: "openrouter/free", name: "Gratis-Modelle (rotierend)" },
+    ...models.filter((model) => model.id !== "openrouter/free")];
 }
 
 async function listPricedModels(apiKey, signal) {
@@ -37,8 +39,9 @@ async function requestChat(model, messages, apiKey, signal, stream, options = {}
     body: JSON.stringify({ model, messages, max_tokens: options.maxTokens ?? 4096, stream,
       ...(options.ceiling !== undefined ? { provider: { max_price: { completion: options.ceiling } } } : {})
     }),
-    signal
+    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(120000)]) : AbortSignal.timeout(120000)
   });
+  if (response.status === 429) throw new Error("OpenRouter meldet ein erreichtes Anfrage- oder Gratis-Kontingent (429).");
   if (!response.ok) throw new Error(`OpenRouter request failed (${response.status}). Check your API key, model access and credits.`);
   return response;
 }
@@ -83,6 +86,9 @@ async function chatStream(model, messages, onChunk, signal, apiKey) {
         if (event.error || event.choices?.[0]?.finish_reason === "error") throw new Error("OpenRouter returned a streaming error.");
         const content = event.choices?.[0]?.delta?.content;
         if (typeof content === "string") onChunk(content);
+        else if (Array.isArray(content)) {
+          for (const part of content) if (part?.type === "text" && typeof part.text === "string") onChunk(part.text);
+        }
       }
       if (done) throw new Error("OpenRouter ended the stream unexpectedly.");
     }

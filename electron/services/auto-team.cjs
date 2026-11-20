@@ -1,16 +1,16 @@
 const { runMultiAgent } = require("./multi-agent.cjs");
 
 const perspectives = [
-  "Ziele und Umfang", "Annahmen und offene Fragen", "Anforderungen und Randfälle",
-  "Vorgehensweisen", "Durchführbarkeit", "Risiken und Abhängigkeiten",
-  "Qualitätsprüfung", "Ressourcen und Aufwand", "Auswirkungen auf Nutzer", "Nächste Schritte"
+  "Ziele und Umfang", "Annahmen und offene Fragen", "Anforderungen und RandfÃ¤lle",
+  "Vorgehensweisen", "DurchfÃ¼hrbarkeit", "Risiken und AbhÃ¤ngigkeiten",
+  "QualitÃ¤tsprÃ¼fung", "Ressourcen und Aufwand", "Auswirkungen auf Nutzer", "NÃ¤chste Schritte"
 ];
 const tasks = [
-  ["Kernpunkte", "Extrahiere die für den Auftrag wichtigsten Punkte."],
-  ["Alternativen", "Entwickle eine Alternative und erläutere ihre Vor- und Nachteile."],
-  ["Gegenprüfung", "Suche einen möglichen Einwand und prüfe, ob er begründet ist."],
+  ["Kernpunkte", "Extrahiere die fÃ¼r den Auftrag wichtigsten Punkte."],
+  ["Alternativen", "Entwickle eine Alternative und erlÃ¤utere ihre Vor- und Nachteile."],
+  ["GegenprÃ¼fung", "Suche einen mÃ¶glichen Einwand und prÃ¼fe, ob er begrÃ¼ndet ist."],
   ["Beispiele", "Formuliere ein konkretes Beispiel oder Szenario."],
-  ["Prüfkriterien", "Leite überprüfbare Kriterien für ein brauchbares Ergebnis ab."]
+  ["PrÃ¼fkriterien", "Leite Ã¼berprÃ¼fbare Kriterien fÃ¼r ein brauchbares Ergebnis ab."]
 ];
 
 function completeTeam(content, count) {
@@ -47,8 +47,8 @@ function completeTeam(content, count) {
     const topic = perspectives[index % perspectives.length];
     const [label, task] = tasks[Math.floor(index / perspectives.length)];
     roles.push({
-      name: `Lokal ${index + 1}: ${topic} · ${label}`,
-      instruction: `Betrachte den konkreten Auftrag unter dem Aspekt „${topic}“. ${task}`
+      name: `Lokal ${index + 1}: ${topic} Â· ${label}`,
+      instruction: `Betrachte den konkreten Auftrag unter dem Aspekt â€ž${topic}â€œ. ${task}`
     });
   }
   return { roles, fallbackCount };
@@ -63,7 +63,8 @@ async function runAutoTeam({ settings, provider, apiKey, messages, knowledgeCont
     throw new Error("Agentenlauf: UngÃ¼ltige TeamgrÃ¶ÃŸe, Rundenzahl oder Preisgrenze.");
   }
   if (!apiKey) throw new Error("Agentenlauf: Hinterlege zuerst einen OpenRouter-SchlÃ¼ssel in Settings.");
-  const models = (await provider.listPricedModels(apiKey, signal))
+  const free = settings.free === true;
+  const models = free ? [{ id: "openrouter/free", input: 0, output: 0 }] : (await provider.listPricedModels(apiKey, signal))
     .filter((model) => model.output <= ceiling && model.context >= 16384)
     .sort((a, b) => a[sort] - b[sort] || a.output - b.output || a.input - b.input || a.id.localeCompare(b.id));
   if (!models.length) throw new Error("Agentenlauf: Kein OpenRouter-Modell erfÃ¼llt das Output-Preislimit und die Kontextanforderung.");
@@ -74,17 +75,17 @@ async function runAutoTeam({ settings, provider, apiKey, messages, knowledgeCont
   const planned = await provider.chat(selected.id, [
     { role: "system", content: `Plan exactly ${count} distinct specialist roles to answer the user's request. Use the user's language. Give each role a short name and a concrete, different analytical task. Return only a JSON array of objects with string fields name and instruction. Keep each instruction under 150 characters. These specialists produce text reports only.` },
     { role: "user", content: prompt.slice(0, 8000) }
-  ], apiKey, signal, { ceiling, maxTokens: 4096 }).catch((error) => {
+  ], apiKey, signal, { ceiling: free ? undefined : ceiling, maxTokens: 4096 }).catch((error) => {
     if (signal?.aborted || !/^(OpenRouter hat keinen sichtbaren Antworttext geliefert|OpenRouter hat das Tokenlimit erreicht)/.test(error?.message || "")) throw error;
     return { message: { content: "" } };
   });
   const team = completeTeam(planned.message.content, count);
-  if (team.fallbackCount) onProgress(`JARVIS ergänzt ${team.fallbackCount} Rollen lokal.`);
+  if (team.fallbackCount) onProgress(`JARVIS ergÃ¤nzt ${team.fallbackCount} Rollen lokal.`);
   const roles = team.roles.map((role, index) => ({ id: `auto-${index}`, name: role.name.trim(), instruction: role.instruction.trim() }));
   onProgress(`Team bereit: ${roles.length} Agenten Â· ${rounds} Runden`);
   const cappedProvider = {
     name: provider.name,
-    chat: (model, context, key, abort) => provider.chat(model, context, key, abort, { ceiling, maxTokens: 1536 })
+    chat: (model, context, key, abort) => provider.chat(model, context, key, abort, { ceiling: free ? undefined : ceiling, maxTokens: 1536 })
   };
   return runMultiAgent({
     providerId: "openrouter", model: selected.id,

@@ -21,15 +21,15 @@ type OllamaModel = {
 };
 type ChatProvider = "ollama" | "anthropic" | "openai" | "gemini" | "openrouter";
 type AgentRoleId = "researcher" | "developer" | "security" | "critic";
-type AutoTeamSettings = { count: number; rounds: number; ceiling: number; sort: "output" | "input" };
+type AutoTeamSettings = { count: number; rounds: number; ceiling: number; sort: "output" | "input"; free?: boolean };
 const defaultAutoTeam: AutoTeamSettings = { count: 4, rounds: 1, ceiling: 1, sort: "output" };
 
 function savedAutoTeam(model: string): AutoTeamSettings | null {
-  const match = /^auto-team:(\d+):(\d+):([\d.]+):(output|input)$/.exec(model);
+  const match = /^auto-team:(\d+):(\d+):([\d.]+):(output|input|free)$/.exec(model);
   if (!match) return null;
   const count = Number(match[1]), rounds = Number(match[2]), ceiling = Number(match[3]);
   if (count < 2 || count > 50 || rounds < 1 || rounds > 3 || !Number.isFinite(ceiling) || ceiling > 1000) return null;
-  return { count, rounds, ceiling, sort: match[4] === "input" ? "input" : "output" };
+  return { count, rounds, ceiling, sort: match[4] === "input" ? "input" : "output", free: match[4] === "free" };
 }
 
 type AgentModelSelections = Partial<Record<AgentRoleId, string>>;
@@ -388,7 +388,7 @@ declare global {
         authenticate: (mode: "register" | "login", name: string, password: string) => Promise<string>;
         logout: () => Promise<void>;
       };
-      jarvis: { openTool: (tool: string) => Promise<void> };
+      jarvis: { listApps: () => Promise<import("./WindowsAppLauncher").WindowsApp[]>; openApp: (id: string) => Promise<void>; openTool: (tool: string) => Promise<void> };
       system: { metrics: () => Promise<SystemSample>; temperature: () => Promise<number | null> };
       updates: { version: () => Promise<string>; check: () => Promise<UpdateStatus>; install: (version: string) => Promise<void> };
       workspace: {
@@ -1340,7 +1340,7 @@ export default function App({ onLogout }: { onLogout: () => Promise<void> }) {
         const saved = await window.unfeal.chats.saveTurn({
           ...(chatId ? { id: chatId } : {}),
           model: autoTeamActive
-            ? `auto-team:${autoTeamActive.count}:${autoTeamActive.rounds}:${autoTeamActive.ceiling.toFixed(4)}:${autoTeamActive.sort}`
+            ? `auto-team:${autoTeamActive.count}:${autoTeamActive.rounds}:${autoTeamActive.ceiling.toFixed(4)}:${autoTeamActive.free ? "free" : autoTeamActive.sort}`
             : multiAgentMode
             ? `multi-config:${encodeURIComponent(JSON.stringify({ agentRoleIds, agentProviderSelections: outgoingAgentProviders, agentModelSelections: outgoingAgentModels, includeKnowledge, agentRounds, maxAgentCalls, provider: chatProvider, model: chatModel }))}`
             : `${chatProvider}:${chatModel}`,
@@ -1521,14 +1521,18 @@ export default function App({ onLogout }: { onLogout: () => Promise<void> }) {
               <label>Runden <select value={autoTeamActive.rounds} onChange={(event) => setAutoTeam({ ...autoTeamActive, rounds: Number(event.target.value) })}>
                 {[1, 2, 3].map((rounds) => <option key={rounds}>{rounds}</option>)}
               </select></label>
-              <label>Max. $ pro Mio. Output-Token <input type="number" min="0" max="1000" step="0.0001" value={autoTeamActive.ceiling}
+              <label><input type="checkbox" checked={Boolean(autoTeamActive.free)}
+                onChange={(event) => setAutoTeam({ ...autoTeamActive, free: event.target.checked })} />
+                Nur Gratis-Modelle (rotierend)
+              </label>
+              <label>Max. $ pro Mio. Output-Token <input type="number" min="0" max="1000" step="0.0001" disabled={autoTeamActive.free} value={autoTeamActive.free ? 0 : autoTeamActive.ceiling}
                 onChange={(event) => setAutoTeam({ ...autoTeamActive, ceiling: Number(event.target.value) })} /></label>
-              <label>Modell sortieren nach <select value={autoTeamActive.sort}
+              <label>Modell sortieren nach <select disabled={autoTeamActive.free} value={autoTeamActive.sort}
                 onChange={(event) => setAutoTeam({ ...autoTeamActive, sort: event.target.value === "input" ? "input" : "output" })}>
                 <option value="output">Günstigste Ausgabe</option><option value="input">Günstigste Eingabe</option>
               </select></label>
               <label><input type="checkbox" checked={includeKnowledge} onChange={(event) => setIncludeKnowledge(event.target.checked)} /> Knowledge-Kontext</label>
-              <p>Bis zu {autoTeamActive.count * autoTeamActive.rounds + 2} OpenRouter-Aufrufe inklusive Teamplanung und Zusammenfassung. Eingabe-Token werden separat berechnet.</p>
+              <p>Bis zu {autoTeamActive.count * autoTeamActive.rounds + 2} OpenRouter-Aufrufe inklusive Teamplanung und Zusammenfassung. {autoTeamActive.free ? "Gratis-Modelle unterliegen OpenRouter-Kontingenten." : "Eingabe-Token werden separat berechnet."}</p>
             </fieldset>}
             {modelsError && <p className="chat-error" role="alert">{modelsError}</p>}
             {!multiAgentMode && <div className="knowledge-actions">

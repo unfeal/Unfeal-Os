@@ -1,3 +1,4 @@
+import WindowsAppLauncher from "./WindowsAppLauncher";
 import { useEffect, useRef, useState } from "react";
 
 type Recognition = {
@@ -105,6 +106,7 @@ export default function JarvisPanel({ busy, progress, reply, onDictation, rounds
       <div className="jarvis-workbench">
         <section aria-label="PC-Steuerung">
           <h2>PC-Steuerung</h2>
+          <WindowsAppLauncher />
           <div className="jarvis-controls">
             {[["explorer", "Explorer"], ["editor", "Editor"], ["calculator", "Rechner"], ["choose", "Anderes Programm"], ["computer", "Dieser PC"]].map(([tool, label]) =>
               <button key={tool} type="button" onClick={async () => {
